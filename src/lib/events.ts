@@ -29,6 +29,9 @@ type LegacyEventDoc = {
   name?: string;
   description?: string;
   category?: string;
+  // URL slug in the production Angular app (/cng-events/<path>), e.g.
+  // "aw80d-6.0", "1177". Present on all 27 real docs.
+  path?: string;
   startDate?: string;
   endDate?: string;
   distance?: string | number;
@@ -81,6 +84,7 @@ function mapLegacyEvent(id: string, data: LegacyEventDoc): EventCard {
   const targetDistanceKm = parseLegacyDistanceKm(data.distance);
   return {
     id: `legacy-${id}`,
+    slug: data.path || `legacy-${id}`,
     name: data.name ?? "Untitled Event",
     categoryLabel: LEGACY_CATEGORY_LABELS[data.category ?? ""] ?? data.category ?? "Event",
     startDate: data.startDate ?? "",
@@ -98,6 +102,7 @@ function mapLegacyEvent(id: string, data: LegacyEventDoc): EventCard {
 function mapNewEvent(event: CyclingEvent): EventCard {
   return {
     id: event.id,
+    slug: event.id,
     name: event.name,
     categoryLabel: event.category,
     startDate: event.startDate,
@@ -168,14 +173,18 @@ export async function getPastEvents(limit = 5): Promise<EventCard[]> {
 }
 
 /**
- * A single event for the detail page — `id` is whatever EventCard.id
- * handed to the link (either a plain cyclingEvents doc id, or a
- * "legacy-<docId>" id for the read-only legacy source). Returns null if
- * not found, or if a legacy doc exists but isn't published.
+ * A single event for the detail page, resolved from a URL slug
+ * (EventCard.slug). The slug is one of:
+ *  - a legacy event's `path` field (e.g. "aw80d-6.0") — the same slug the
+ *    production Angular app uses at /cng-events/<path>
+ *  - this app's own cyclingEvents doc id
+ *  - a "legacy-<docId>" string — still accepted so older links keep working
+ *    (and covers legacy docs that have no `path`)
+ * Returns null if not found, or if a legacy doc exists but isn't published.
  */
-export async function getEventById(id: string): Promise<EventCard | null> {
-  if (id.startsWith("legacy-")) {
-    const legacyId = id.slice("legacy-".length);
+export async function getEventBySlug(slug: string): Promise<EventCard | null> {
+  if (slug.startsWith("legacy-")) {
+    const legacyId = slug.slice("legacy-".length);
     const doc = await adminDb.collection(LEGACY_COLLECTION).doc(legacyId).get();
     if (!doc.exists) {
       return null;
@@ -187,11 +196,25 @@ export async function getEventById(id: string): Promise<EventCard | null> {
     return mapLegacyEvent(doc.id, data);
   }
 
-  const doc = await adminDb.collection(COLLECTION).doc(id).get();
-  if (!doc.exists) {
-    return null;
+  // This app's own events — doc id.
+  const ownDoc = await adminDb.collection(COLLECTION).doc(slug).get();
+  if (ownDoc.exists) {
+    return mapNewEvent({ id: ownDoc.id, ...ownDoc.data() } as CyclingEvent);
   }
-  return mapNewEvent({ id: doc.id, ...doc.data() } as CyclingEvent);
+
+  // Legacy events — matched on the `path` field, published only.
+  const legacySnapshot = await adminDb
+    .collection(LEGACY_COLLECTION)
+    .where("path", "==", slug)
+    .where("publish", "==", true)
+    .limit(1)
+    .get();
+  const legacyDoc = legacySnapshot.docs[0];
+  if (legacyDoc) {
+    return mapLegacyEvent(legacyDoc.id, legacyDoc.data() as LegacyEventDoc);
+  }
+
+  return null;
 }
 
 export async function listAllEvents(): Promise<CyclingEvent[]> {

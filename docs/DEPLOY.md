@@ -28,10 +28,12 @@ Two non-obvious flags:
 
 - **`IS_WEBPACK_TEST=1`** — forces `next build` to use webpack instead of Turbopack.
   Firebase's web-frameworks integration spawns `next build` directly (it ignores the
-  `build` script in `package.json`), and Next 16 defaults that to Turbopack. Turbopack's
-  module externalization produces a broken `firebase-admin-<hash>/app` import that fails
-  at runtime with `ERR_MODULE_NOT_FOUND`, so every SSR route 500s. The webpack build
-  bundles `firebase-admin` correctly. This is the only supported lever (see
+  `build` script in `package.json` — do **not** put `--webpack` there, it just triggers
+  a "custom build ignored" warning), and Next 16 defaults that build to Turbopack.
+  Turbopack's module externalization produces a broken `firebase-admin-<hash>/app`
+  import that fails at runtime with `ERR_MODULE_NOT_FOUND`, so every SSR route 500s.
+  The webpack build bundles `firebase-admin` correctly. `IS_WEBPACK_TEST=1` is the only
+  lever that survives into Firebase's spawned build (see
   `node_modules/next/dist/lib/bundler.js` → `parseBundlerArgs`).
 - **`--force`** — lets Firebase auto-configure the Artifact Registry cleanup policy for
   the function's container images without an interactive prompt.
@@ -43,8 +45,7 @@ Two non-obvious flags:
 - `.npmrc` → `legacy-peer-deps=true`. Firebase injects `firebase-frameworks`, whose
   peer range does not include `firebase-admin@14`; without this the deploy's internal
   `npm install` fails with `ERESOLVE`.
-- `package.json` → `"build": "next build --webpack"` for local parity (not used by the
-  Firebase deploy, which spawns its own build).
+- `eslint.config.mjs` → ignores `.firebase/**` (the deploy staging dir).
 
 ## Known warnings (harmless)
 

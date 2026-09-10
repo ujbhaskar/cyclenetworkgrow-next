@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Firebase Hosting build staging dir (see docs/DEPLOY.md).
+    ".firebase/**",
   ]),
 ]);
 

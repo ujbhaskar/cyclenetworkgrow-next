@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
-import { getEventById, isEventUpcoming } from "@/lib/events";
+import { getEventBySlug, isEventUpcoming } from "@/lib/events";
 import { getEventLeaderboard } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
@@ -32,9 +32,9 @@ function formatDate(iso: string): string {
 
 export default async function EventDetailPage({
   params,
-}: PageProps<"/events/[eventId]">) {
-  const { eventId } = await params;
-  const event = await getEventById(eventId);
+}: PageProps<"/events/[slug]">) {
+  const { slug } = await params;
+  const event = await getEventBySlug(slug);
 
   if (!event) {
     notFound();

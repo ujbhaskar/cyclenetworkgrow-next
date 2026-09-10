@@ -48,6 +48,13 @@ export type EventInput = {
 // there's no EventCard -> Firestore write path.
 export type EventCard = {
   id: string;
+  // URL segment for the public detail page (/events/<slug>). For legacy
+  // events this is the doc's `path` field — the same slug the production
+  // Angular app uses (/cng-events/<path>) — falling back to the "legacy-<docId>"
+  // form when a legacy doc has no `path`. For this app's own events it's the
+  // Firestore doc id. `id` stays the stable internal identifier; `slug` is
+  // only for links and route resolution.
+  slug: string;
   name: string;
   categoryLabel: string;
   startDate: string;

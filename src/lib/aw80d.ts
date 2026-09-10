@@ -8,7 +8,7 @@ import aw80d2026Compressed from "@/lib/data/aw80d-2026-results.json";
 
 // AW80D 6.0 (2026) — see the event's own rules PDF, linked from its Rules
 // button ("CNG AW80D 2026 Concept Note_v3_15th March.pdf"). Raw legacy
-// Firestore id (no "legacy-" prefix — that's only added by getEventById's
+// Firestore id (no "legacy-" prefix — that's only added by the
 // URL-routing layer in src/lib/events.ts).
 export const AW80D_EVENT_ID = "DZjop5Od0FZb9bVIopYS";
 

@@ -34,7 +34,7 @@ export default function EventCardView({ event }: { event: EventCard }) {
         <p className="text-muted small mb-3">
           <i className="bi bi-speedometer2 me-1" aria-hidden /> {event.distanceLabel}
         </p>
-        <Link href={`/events/${event.id}`} className="btn btn-success w-100">
+        <Link href={`/events/${event.slug}`} className="btn btn-success w-100">
           Know more
         </Link>
       </CardBody>

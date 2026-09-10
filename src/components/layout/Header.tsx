@@ -16,7 +16,7 @@ const NAV_LINKS = [
 
 const ADMIN_NAV_LINK = { href: "/admin/dashboard", label: "Admin" };
 
-// Event detail pages (/events/[eventId]) have their own full-bleed banner
+// Event detail pages (/events/[slug]) have their own full-bleed banner
 // image right at the top, same as the home page hero — see
 // docs/design/screenshots/Home-1.png.
 function isEventDetailPage(pathname: string): boolean {
