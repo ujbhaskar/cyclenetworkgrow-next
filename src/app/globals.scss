@@ -1,0 +1,27 @@
+// Brand colors — mirrors letscng-ui/src/styles.scss so both apps share the
+// same palette. $primary drives every Bootstrap component that uses the
+// "primary" variant (buttons, active toggles, links, focus rings, etc.).
+$cng-blue-color: #125ea3;
+$primary: $cng-blue-color;
+
+// Header/body font pair from docs/design/screenshots/Home-1.png — the actual
+// font files load via next/font/google in layout.tsx, which exposes them as
+// these CSS custom properties.
+$font-family-base: var(--font-body), Helvetica, Arial, sans-serif;
+$headings-font-family: var(--font-heading), Helvetica, Arial, sans-serif;
+// .display-* (used by the Hero h1) defaults to $font-family-base, not
+// $headings-font-family — override it separately so it also gets Parkinsans.
+$display-font-family: var(--font-heading), Helvetica, Arial, sans-serif;
+
+@import "bootstrap/scss/bootstrap";
+@import "bootstrap-icons/font/bootstrap-icons.css";
+
+html,
+body {
+  min-height: 100dvh;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
