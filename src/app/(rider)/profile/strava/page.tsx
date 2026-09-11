@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import Image from "next/image";
 import Container from "react-bootstrap/Container";
 import Alert from "react-bootstrap/Alert";
 import { verifySession } from "@/lib/auth/dal";
@@ -72,16 +71,21 @@ export default async function ConnectStravaPage({
           </p>
           {/* Strava's brand guidelines require their own button asset (exact
               color/wordmark), not a custom-styled button — see
-              https://developers.strava.com/guidelines/ */}
+              https://developers.strava.com/guidelines/. Plain <img>, not
+              next/image: the optimizer 404s on this deployment (same class
+              of internal-networking quirk as the callback redirect fix
+              above), and these small brand logos don't need resizing. */}
           <a href={authorizeUrl}>
-            <Image src="/strava/connect-with-strava.png" alt="Connect with Strava" width={193} height={48} />
+            {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer 404s here, see comment above */}
+            <img src="/strava/connect-with-strava.png" alt="Connect with Strava" width={193} height={48} />
           </a>
         </>
       )}
 
       {/* Required attribution wherever Strava-sourced data/branding appears
           on the page, connected or not — same asset letscng-ui uses. */}
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer 404s here, see comment above */}
+      <img
         src="/strava/powered-by-strava.png"
         alt="Powered by Strava"
         width={169}
