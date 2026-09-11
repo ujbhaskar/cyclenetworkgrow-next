@@ -1,11 +1,4 @@
 {
-  "hosting": {
-    "site": "cyclenetworkgrow-next",
-    "source": ".",
-    "frameworksBackend": {
-      "region": "asia-southeast1"
-    }
-  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

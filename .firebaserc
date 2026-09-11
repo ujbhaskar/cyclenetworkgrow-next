@@ -1,15 +1,5 @@
 {
   "projects": {
     "default": "challenge1177"
-  },
-  "targets": {
-    "challenge1177": {
-      "hosting": {
-        "cngnext": [
-          "cyclenetworkgrow-next"
-        ]
-      }
-    }
-  },
-  "etags": {}
+  }
 }

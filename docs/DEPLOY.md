@@ -3,99 +3,92 @@
 ## Where it lives
 
 - **Firebase project:** `challenge1177` (LetsCNG) — the *same* project that hosts the
-  production `letscng-ui` Angular site. Owner is `cyclenetworkgrow@gmail.com`;
-  `ujjal1991@gmail.com` has Editor + Cloud Functions Admin + Cloud Run Admin +
-  Service Account User (the last three were needed to deploy an SSR backend).
-- **Hosting site:** `cyclenetworkgrow-next` (a *second* site in the project, created with
-  `firebase hosting:sites:create`). It is completely independent of the `letscng-ui`
-  production site — deploying one never touches the other.
-- **Live URL:** https://cyclenetworkgrow-next.web.app
-- **SSR backend:** 2nd-gen Cloud Function `ssrcyclenetworkgrownext` in `asia-southeast1`
-  (auto-created by the Firebase web-frameworks integration; it runs on Cloud Run).
+  production `letscng-ui` Angular site. Owner is `cyclenetworkgrow@gmail.com`.
+- **Hosting:** [Firebase App Hosting](https://firebase.google.com/docs/app-hosting),
+  backend `cyclenetworkgrow-next`, region `us-east4`. It runs a real Next.js server on
+  Cloud Run (service `cyclenetworkgrow-next` in `us-east4`) — not the classic Hosting +
+  Cloud Functions "web frameworks" integration this project used at first (see
+  [History](#history) below for why that was abandoned).
+- **Live URL:** https://cyclenetworkgrow-next--challenge1177.us-east4.hosted.app
+- **Repo connection:** `ujbhaskar/cyclenetworkgrow-next` on GitHub, branch `main`, root
+  directory `/`. Every push to `main` (that changes app code) triggers a new Cloud Build
+  → Cloud Run rollout automatically — no manual deploy step, no GitHub Actions workflow.
 
 This is a **review / staging** deployment. It talks to the **real `challenge1177`
-Firestore and Auth** — same data as `letscng.com` production. It is a separate *site*,
+Firestore and Auth** — same data as `letscng.com` production. It's a separate *backend*,
 not a separate *database*.
 
-## How it deploys
+## Deploying
 
-**Automatically, via GitHub Actions** — `.github/workflows/deploy-review-site.yml` runs
-on every push to `main` (excluding docs-only changes) and can also be triggered manually
-from the Actions tab. It authenticates with a service-account key stored as the
-`FIREBASE_DEPLOY_KEY` repo secret.
-
-**Manually**, from a working tree:
+Just push to `main`. Watch progress either in the Firebase Console
+(**App Hosting → cyclenetworkgrow-next → View**) or directly in Cloud Build:
 
 ```bash
-cd cyclenetworkgrow-next
-FIREBASE_CLI_EXPERIMENTS=webframeworks \
-IS_WEBPACK_TEST=1 \
-firebase deploy --only hosting --project challenge1177 --force
+# find the latest build for this backend
+gcloud builds list --project=challenge1177 --region=us-east4 --limit=5
+
+# stream its logs
+gcloud builds log <BUILD_ID> --project=challenge1177 --region=us-east4 --stream
 ```
 
-Two non-obvious flags:
-
-- **`IS_WEBPACK_TEST=1`** — forces `next build` to use webpack instead of Turbopack.
-  Firebase's web-frameworks integration spawns `next build` directly (it ignores the
-  `build` script in `package.json` — do **not** put `--webpack` there, it just triggers
-  a "custom build ignored" warning), and Next 16 defaults that build to Turbopack.
-  Turbopack's module externalization produces a broken `firebase-admin-<hash>/app`
-  import that fails at runtime with `ERR_MODULE_NOT_FOUND`, so every SSR route 500s.
-  The webpack build bundles `firebase-admin` correctly. `IS_WEBPACK_TEST=1` is the only
-  lever that survives into Firebase's spawned build (see
-  `node_modules/next/dist/lib/bundler.js` → `parseBundlerArgs`).
-- **`--force`** — lets Firebase auto-configure the Artifact Registry cleanup policy for
-  the function's container images without an interactive prompt.
-- **`FIREBASE_CLI_EXPERIMENTS=webframeworks`** — needed on any machine that hasn't run
-  `firebase experiments:enable webframeworks` (i.e. CI). Locally the enable is persisted,
-  so the manual command above still works without it — the var just makes it portable.
-
-## One-time CI setup
-
-The GitHub Actions workflow needs a service-account key in the `FIREBASE_DEPLOY_KEY`
-repo secret. To (re)create it:
-
-```bash
-gcloud iam service-accounts create github-deployer \
-  --project challenge1177 --display-name "GitHub Actions – review site deploy"
-
-SA=github-deployer@challenge1177.iam.gserviceaccount.com
-
-# Role grants REQUIRE the project Owner (cyclenetworkgrow@gmail.com).
-# This mirrors the human deployer's proven-working permission set.
-for role in roles/editor roles/cloudfunctions.admin roles/run.admin roles/iam.serviceAccountUser; do
-  gcloud projects add-iam-policy-binding challenge1177 \
-    --member "serviceAccount:$SA" --role "$role"
-done
-
-gcloud iam service-accounts keys create /tmp/gh-deployer.json --iam-account "$SA"
-gh secret set FIREBASE_DEPLOY_KEY --repo ujbhaskar/cyclenetworkgrow-next < /tmp/gh-deployer.json
-rm /tmp/gh-deployer.json
-```
+To trigger a rebuild without a code change: `firebase apphosting:rollouts:create cyclenetworkgrow-next --project challenge1177`.
 
 ## Supporting config (committed)
 
-- `firebase.json` → `hosting` block with `"source": "."` and
-  `"frameworksBackend": { "region": "asia-southeast1" }`.
-- `.npmrc` → `legacy-peer-deps=true`. Firebase injects `firebase-frameworks`, whose
-  peer range does not include `firebase-admin@14`; without this the deploy's internal
-  `npm install` fails with `ERESOLVE`.
-- `.env.production` → the public `NEXT_PUBLIC_FIREBASE_*` config, compiled into the
-  build. Not secret (it ships in the client bundle either way). `.env.local` (emulator
-  config for `npm run dev`) stays git-ignored.
-- `eslint.config.mjs` → ignores `.firebase/**` (the deploy staging dir).
+- `apphosting.yaml` — runtime config (memory, CPU, instance scaling) for the backend.
+- `.env.production` — the public `NEXT_PUBLIC_FIREBASE_*` config, compiled into the
+  build by Next.js itself. Not secret (it ships in the client bundle either way).
+  `.env.local` (emulator config for `npm run dev`) stays git-ignored.
 
-## Known warnings (harmless)
+## Auth: authorized domains
 
-- `Invalid next.config.js options detected: Unrecognized key(s): '__esModule', 'default'`
-  — Firebase transpiles `next.config.ts` and wraps the ESM default export. Config is
-  effectively empty so it has no effect.
-- Sass `@import` / Dart Sass 3.0 deprecation warnings from Bootstrap.
-- `outdated version of firebase-functions` — comes from the injected `firebase-frameworks`
-  package, not our code.
+Firebase Auth's **Authentication → Settings → Authorized domains** list needs this
+backend's domain (`cyclenetworkgrow-next--challenge1177.us-east4.hosted.app`) added, or
+**Google sign-in specifically** (`signInWithPopup`) fails with `auth/unauthorized-domain`.
+Plain email/password login isn't domain-restricted the same way. If the backend's URL
+ever changes (recreating it, moving regions), re-add the new domain.
 
-## If the web-frameworks path breaks on a future Next release
+## IAM
 
-The supported long-term path for Next.js SSR on Firebase is **App Hosting**
-(`firebase apphosting:backends:create`), which needs the repo pushed to GitHub and a
-one-time GitHub connection. Switch to it if `IS_WEBPACK_TEST=1` stops being enough.
+Managing App Hosting backends (creating/deleting, not just viewing) needs the
+**Firebase App Hosting Admin** (`roles/firebaseapphosting.admin`) role, which is not
+included in `roles/editor`. Grant it via the Owner:
+
+```bash
+gcloud projects add-iam-policy-binding challenge1177 \
+  --member="user:<you>@gmail.com" --role="roles/firebaseapphosting.admin"
+```
+
+The **GitHub connection** (Console → App Hosting → Create/manage backend → import repo)
+is a one-time interactive step — it opens a GitHub OAuth window to install/authorize the
+"Firebase App Hosting" GitHub App on the repo. If that step hangs, the popup was likely
+blocked by the browser; check `github.com/settings/installations` to see whether the app
+is actually installed, allow popups for `console.firebase.google.com`, and retry.
+
+## History
+
+The first attempt at deploying this app used classic Firebase Hosting's "web frameworks"
+integration (`firebase experiments:enable webframeworks`, a `hosting` block in
+`firebase.json` with `frameworksBackend`) — an early-preview feature that wraps the
+Next.js app in a Cloud Functions (2nd gen) handler. It hit two real bugs:
+
+1. **Turbopack build breaks `firebase-admin` at runtime.** Next 16 defaults `next build`
+   to Turbopack; the integration spawns `next build` directly (ignoring any build script),
+   and Turbopack's module externalization produced a broken `firebase-admin-<hash>/app`
+   import (`ERR_MODULE_NOT_FOUND`) — every SSR route 500'd. Worked around at the time with
+   `IS_WEBPACK_TEST=1` to force a webpack build (see `node_modules/next/dist/lib/bundler.js`
+   → `parseBundlerArgs`).
+2. **The Cookie header never reached the app.** Confirmed at two independent layers —
+   `proxy.ts` middleware (reads cookies straight off the raw request) and
+   `next/headers`' `cookies()` in Server Components — both saw zero cookies on requests
+   the browser demonstrably sent one on (verified via DevTools: cookie present,
+   `HttpOnly`/`Secure`/`SameSite=Lax`, correct domain). Login "worked" (Firebase Auth
+   succeeded, the session cookie was set) but every subsequent page silently rendered as
+   logged out, and any protected route bounced back to `/login`. Not fixable from
+   application code — a platform-adapter bug in that early-preview integration.
+
+Given both were platform bugs in an explicitly best-effort integration ("known to work
+with Next.js 12–16.0"), and the app is on Next 16.3.4, the project moved to App Hosting —
+a real Next.js server on Cloud Run — instead of chasing further workarounds. The old
+Hosting site and Cloud Function were deleted; `firebase.json` no longer has a `hosting`
+block.
