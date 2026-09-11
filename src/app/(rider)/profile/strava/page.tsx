@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import Image from "next/image";
 import Container from "react-bootstrap/Container";
 import Alert from "react-bootstrap/Alert";
 import { verifySession } from "@/lib/auth/dal";
@@ -69,12 +70,24 @@ export default async function ConnectStravaPage({
           <p className="text-muted">
             Connect your Strava account so rides during CNG events sync to the leaderboard automatically.
           </p>
-          <a href={authorizeUrl} className="btn btn-success">
-            <i className="bi bi-strava me-2" aria-hidden />
-            Connect with Strava
+          {/* Strava's brand guidelines require their own button asset (exact
+              color/wordmark), not a custom-styled button — see
+              https://developers.strava.com/guidelines/ */}
+          <a href={authorizeUrl}>
+            <Image src="/strava/connect-with-strava.png" alt="Connect with Strava" width={193} height={48} />
           </a>
         </>
       )}
+
+      {/* Required attribution wherever Strava-sourced data/branding appears
+          on the page, connected or not — same asset letscng-ui uses. */}
+      <Image
+        src="/strava/powered-by-strava.png"
+        alt="Powered by Strava"
+        width={169}
+        height={32}
+        className="d-block mx-auto mt-4"
+      />
     </Container>
   );
 }
