@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth/dal";
 import { getUserProfile, setStravaConnected } from "@/lib/user-profile";
@@ -24,7 +25,13 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const error = url.searchParams.get("error");
 
-  const profileUrl = new URL("/profile/strava", url.origin);
+  // Cloud Run's `request.url` resolves to the container's internal bind
+  // address (0.0.0.0:8080), not the public host — same reason
+  // /profile/strava builds its redirect_uri from these headers instead.
+  const headersList = await headers();
+  const host = headersList.get("x-forwarded-host") ?? headersList.get("host") ?? url.host;
+  const protocol = headersList.get("x-forwarded-proto") ?? "https";
+  const profileUrl = new URL("/profile/strava", `${protocol}://${host}`);
 
   if (error || !code) {
     profileUrl.searchParams.set("strava_error", error ?? "missing_code");
