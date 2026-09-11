@@ -1,0 +1,13 @@
+# Firebase App Hosting config for the cyclenetworkgrow-next review backend.
+# See docs/DEPLOY.md. Client-side NEXT_PUBLIC_* config comes from the
+# committed .env.production (Next.js loads it directly during the build) —
+# nothing secret needs to live here.
+
+runConfig:
+  # Review site, low traffic — keep it cheap. Bump if it needs to hold more
+  # than one concurrent request comfortably (the old Cloud Functions deploy
+  # OOM'd at its 256MiB default; give this more headroom from the start).
+  minInstances: 0
+  maxInstances: 2
+  memoryMiB: 512
+  cpu: 1

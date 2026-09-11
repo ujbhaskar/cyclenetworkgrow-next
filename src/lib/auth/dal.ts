@@ -31,7 +31,12 @@ export const getOptionalSession = cache(async (): Promise<Session | null> => {
     const decoded = await verifySessionCookieStrict(sessionCookie);
     const role: Role = ROLES.includes(decoded.role) ? decoded.role : "rider";
     return { uid: decoded.uid, role };
-  } catch {
+  } catch (err) {
+    // A signed-out visitor and a rejected/expired cookie both end up here as
+    // a plain null, which is correct — but silently means the same thing to
+    // callers as "genuinely logged out". Log the real reason so a rejected
+    // session (as opposed to no session) is visible in production.
+    console.error("[getOptionalSession] session cookie rejected:", err);
     return null;
   }
 });
