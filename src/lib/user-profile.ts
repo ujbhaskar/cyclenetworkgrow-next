@@ -68,6 +68,11 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   return doc.exists ? (doc.data() as UserProfile) : null;
 }
 
+/** Flips the `users/{uid}` mirror of the Strava connection state — see src/lib/strava.ts. */
+export async function setStravaConnected(uid: string, connected: boolean): Promise<void> {
+  await adminDb.collection("users").doc(uid).set({ stravaConnected: connected }, { merge: true });
+}
+
 export class ProfileUpdateError extends Error {}
 
 /**

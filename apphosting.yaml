@@ -1,7 +1,14 @@
 # Firebase App Hosting config for the cyclenetworkgrow-next review backend.
 # See docs/DEPLOY.md. Client-side NEXT_PUBLIC_* config comes from the
 # committed .env.production (Next.js loads it directly during the build) —
-# nothing secret needs to live here.
+# nothing secret needs to live here except what's explicitly a `secret:`
+# reference below (Secret Manager, not a plaintext value).
+
+env:
+  - variable: STRAVA_CLIENT_SECRET
+    secret: STRAVA_CLIENT_SECRET
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more
