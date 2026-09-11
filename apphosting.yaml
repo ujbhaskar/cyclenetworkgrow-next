@@ -5,6 +5,8 @@
 # reference below (Secret Manager, not a plaintext value).
 
 env:
+  # Created via `firebase apphosting:secrets:set` + `:grantaccess` — see
+  # docs/DEPLOY.md's Strava section.
   - variable: STRAVA_CLIENT_SECRET
     secret: STRAVA_CLIENT_SECRET
     availability:

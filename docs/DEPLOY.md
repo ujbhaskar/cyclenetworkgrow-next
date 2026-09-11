@@ -31,7 +31,36 @@ gcloud builds list --project=challenge1177 --region=us-east4 --limit=5
 gcloud builds log <BUILD_ID> --project=challenge1177 --region=us-east4 --stream
 ```
 
-To trigger a rebuild without a code change: `firebase apphosting:rollouts:create cyclenetworkgrow-next --project challenge1177`.
+To trigger a rebuild without a real code change, push a small no-op diff (e.g. a comment
+tweak) — `git commit --allow-empty` does **not** trigger the GitHub webhook here, and
+`firebase apphosting:rollouts:create` needs `developerconnect.gitRepositoryLinks.fetchReadToken`,
+which isn't included in `firebaseapphosting.admin` (same "Editor + piecemeal admin roles"
+pattern as everything else in this project — ask the Owner if it's ever actually needed).
+
+## Strava (rider profile connect/disconnect)
+
+`src/lib/strava.ts` does the OAuth token exchange server-side (unlike letscng-ui, which
+puts the client secret in the browser — see the History section) and reads/writes the
+same `athelete_tokens` collection the legacy app and this app's `rider-metrics.ts` already
+use, keyed by the legacy bare-digit phone format.
+
+- `STRAVA_CLIENT_ID` — not secret (already public in letscng-ui's bundle), lives in
+  `.env.production`.
+- `STRAVA_CLIENT_SECRET` — an App Hosting secret (Secret Manager), referenced in
+  `apphosting.yaml`, never committed. Set it with:
+  ```bash
+  sed -n "s/.*clientSecret:'\([^']*\)'.*/\1/p" ../letscng-ui/src/environments/environment.prod.ts \
+    | tr -d "\n" \
+    | firebase apphosting:secrets:set STRAVA_CLIENT_SECRET --project challenge1177 --force --data-file -
+  firebase apphosting:secrets:grantaccess STRAVA_CLIENT_SECRET \
+    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+  ```
+  The `grantaccess` step needs **Secret Manager Admin** on top of the usual roles — same
+  IAM-gap pattern as everything else here.
+- Strava's OAuth app has (historically, at least) a single **Authorization Callback
+  Domain** at strava.com/settings/api — check before adding a new domain there, since it
+  may replace whatever's already registered for production `letscng.com` rather than
+  adding alongside it.
 
 ## Supporting config (committed)
 
