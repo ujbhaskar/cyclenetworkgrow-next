@@ -13,6 +13,14 @@ const STRAVA_TOKENS_COLLECTION = "athelete_tokens"; // sic — matches the real 
 const STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize";
 const STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token";
 const STRAVA_DEAUTHORIZE_URL = "https://www.strava.com/oauth/deauthorize";
+const STRAVA_PUSH_SUBSCRIPTIONS_URL = "https://www.strava.com/api/v3/push_subscriptions";
+
+// Verifies the GET handshake Strava makes to a callback_url before
+// accepting a new subscription (see src/app/api/strava/webhook/route.ts).
+// Distinct from the legacy Angular app's own token ("letscngSubscription")
+// — doesn't need to match it, each subscription's verify_token is only
+// ever compared against what that same subscription was created with.
+export const STRAVA_WEBHOOK_VERIFY_TOKEN = "cyclenetworkgrow_subscription";
 
 // Read-only activity access — no write scope needed, this app never posts
 // to Strava on a rider's behalf.
@@ -251,4 +259,68 @@ export async function disconnectStrava(athleteId: string): Promise<void> {
   }
 
   await ref.delete();
+}
+
+export type StravaSubscription = {
+  id: number;
+  callbackUrl: string;
+};
+
+/**
+ * The current webhook push subscription, if any. Strava allows **only one
+ * subscription per Client ID, globally** — this app and the legacy Angular
+ * app share the same Strava API application, so whichever one last created
+ * a subscription is the one actually receiving every connected rider's
+ * activity events, not just this app's own. See the admin Strava
+ * Subscription page for the same caution shown there.
+ */
+export async function getStravaSubscription(): Promise<StravaSubscription | null> {
+  const params = new URLSearchParams({
+    client_id: requireEnv("STRAVA_CLIENT_ID"),
+    client_secret: requireEnv("STRAVA_CLIENT_SECRET"),
+  });
+  const res = await fetch(`${STRAVA_PUSH_SUBSCRIPTIONS_URL}?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Strava push_subscriptions lookup failed: ${res.status} ${await res.text()}`);
+  }
+  const subscriptions: Array<{ id: number; callback_url: string }> = await res.json();
+  const first = subscriptions[0];
+  return first ? { id: first.id, callbackUrl: first.callback_url } : null;
+}
+
+/**
+ * Creates the subscription — `callbackUrl` should point at
+ * /api/strava/webhook on whichever domain is currently deployed (built
+ * per-request from the incoming host, same pattern as
+ * getStravaAuthorizeUrl). Strava calls that URL with a GET verification
+ * challenge synchronously as part of this request; if it can't reach it or
+ * the verify_token doesn't match, this throws.
+ */
+export async function createStravaSubscription(callbackUrl: string): Promise<StravaSubscription> {
+  const res = await fetch(STRAVA_PUSH_SUBSCRIPTIONS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: requireEnv("STRAVA_CLIENT_ID"),
+      client_secret: requireEnv("STRAVA_CLIENT_SECRET"),
+      callback_url: callbackUrl,
+      verify_token: STRAVA_WEBHOOK_VERIFY_TOKEN,
+    }).toString(),
+  });
+  if (!res.ok) {
+    throw new Error(`Strava subscription creation failed: ${res.status} ${await res.text()}`);
+  }
+  const created: { id: number } = await res.json();
+  return { id: created.id, callbackUrl };
+}
+
+export async function deleteStravaSubscription(id: number): Promise<void> {
+  const params = new URLSearchParams({
+    client_id: requireEnv("STRAVA_CLIENT_ID"),
+    client_secret: requireEnv("STRAVA_CLIENT_SECRET"),
+  });
+  const res = await fetch(`${STRAVA_PUSH_SUBSCRIPTIONS_URL}/${id}?${params.toString()}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`Strava subscription delete failed: ${res.status} ${await res.text()}`);
+  }
 }
