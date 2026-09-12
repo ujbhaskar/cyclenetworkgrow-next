@@ -35,6 +35,12 @@ const FIVE_DAYS_SECONDS = 5 * 24 * 60 * 60;
  *                     type: string
  *                   address:
  *                     type: string
+ *                   city:
+ *                     type: string
+ *                   state:
+ *                     type: string
+ *                   pincode:
+ *                     type: string
  *     responses:
  *       200:
  *         description: Session cookie set

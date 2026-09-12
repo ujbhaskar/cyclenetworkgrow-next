@@ -42,6 +42,9 @@ export async function upsertUserProfile(
   const firstName = profileInput?.firstName || existingData?.firstName || googleFirst || null;
   const lastName = profileInput?.lastName || existingData?.lastName || googleRest.join(" ") || null;
   const address = profileInput?.address || existingData?.address || null;
+  const city = profileInput?.city || existingData?.city || null;
+  const state = profileInput?.state || existingData?.state || null;
+  const pincode = profileInput?.pincode || existingData?.pincode || null;
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || email || phone || "Rider";
 
   const data: Omit<UserProfile, "role" | "createdAt"> = {
@@ -52,6 +55,9 @@ export async function upsertUserProfile(
     lastName,
     displayName,
     address,
+    city,
+    state,
+    pincode,
     stravaConnected: existingData?.stravaConnected ?? false,
     organizationId: existingData?.organizationId ?? null,
   };
@@ -85,7 +91,16 @@ export class ProfileUpdateError extends Error {}
  */
 export async function updateOwnProfile(
   uid: string,
-  fields: { firstName: string; lastName?: string; phone?: string; address?: string; email?: string }
+  fields: {
+    firstName: string;
+    lastName?: string;
+    phone?: string;
+    address?: string;
+    email?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  }
 ): Promise<void> {
   const ref = adminDb.collection("users").doc(uid);
   const existing = (await ref.get()).data() as Partial<UserProfile> | undefined;
@@ -114,7 +129,13 @@ export async function updateOwnProfile(
   const lastName = fields.lastName || existing?.lastName || null;
   const phone = fields.phone ? normalizePhone(fields.phone) : existing?.phone ?? null;
   const address = fields.address || existing?.address || null;
+  const city = fields.city || existing?.city || null;
+  const state = fields.state || existing?.state || null;
+  const pincode = fields.pincode || existing?.pincode || null;
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || email || phone || "Rider";
 
-  await ref.set({ email, firstName, lastName, phone, address, displayName }, { merge: true });
+  await ref.set(
+    { email, firstName, lastName, phone, address, city, state, pincode, displayName },
+    { merge: true }
+  );
 }

@@ -11,6 +11,7 @@ import Link from "next/link";
 import { auth } from "@/lib/firebase/client";
 import { establishSession } from "@/lib/auth/establish-session";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE } from "@/lib/auth/phone";
+import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
 import GoogleSignInButton from "./GoogleSignInButton";
 import PasswordInput from "./PasswordInput";
 
@@ -20,6 +21,9 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
   const [email, setEmail] = useState("");
   const [countryCode, setCountryCode] = useState<string>(DEFAULT_COUNTRY_CODE);
   const [phone, setPhone] = useState("");
@@ -43,6 +47,9 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
         lastName,
         address: address || undefined,
         phone: fullPhone,
+        city: city || undefined,
+        state: state || undefined,
+        pincode: pincode || undefined,
       });
       router.push(redirectTo);
       router.refresh();
@@ -112,6 +119,41 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
           <Form.Label>Address (optional)</Form.Label>
           <Form.Control value={address} onChange={(e) => setAddress(e.target.value)} />
         </Form.Group>
+
+        <div className="row g-3 mb-3">
+          <div className="col-sm-5">
+            <Form.Group>
+              <Form.Label>City (optional)</Form.Label>
+              <Form.Control value={city} onChange={(e) => setCity(e.target.value)} />
+            </Form.Group>
+          </div>
+          <div className="col-sm-4">
+            <Form.Group>
+              <Form.Label>State (optional)</Form.Label>
+              <Form.Select value={state} onChange={(e) => setState(e.target.value)}>
+                <option value="">Select…</option>
+                {INDIAN_STATES_AND_UTS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+          </div>
+          <div className="col-sm-3">
+            <Form.Group>
+              <Form.Label>PIN code (optional)</Form.Label>
+              <Form.Control
+                inputMode="numeric"
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="110001"
+                pattern="[1-9][0-9]{5}"
+                maxLength={6}
+              />
+            </Form.Group>
+          </div>
+        </div>
 
         {error && <p className="text-danger small">{error}</p>}
         <Button type="submit" className="w-100" disabled={pending}>

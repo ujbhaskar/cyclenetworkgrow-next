@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isSyntheticEmail } from "@/lib/auth/phone";
 import type { UserProfile } from "@/lib/models/user";
+import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
 
 export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
   const router = useRouter();
@@ -15,6 +16,9 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
   const [email, setEmail] = useState(profile.email && !isSyntheticEmail(profile.email) ? profile.email : "");
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [address, setAddress] = useState(profile.address ?? "");
+  const [city, setCity] = useState(profile.city ?? "");
+  const [state, setState] = useState(profile.state ?? "");
+  const [pincode, setPincode] = useState(profile.pincode ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -28,7 +32,7 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, phone, address }),
+        body: JSON.stringify({ firstName, lastName, email, phone, address, city, state, pincode }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -113,6 +117,49 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
+      </div>
+
+      <div className="row g-3 mb-3">
+        <div className="col-sm-5">
+          <label htmlFor="city" className="form-label">
+            City
+          </label>
+          <input
+            id="city"
+            type="text"
+            className="form-control"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+          />
+        </div>
+        <div className="col-sm-4">
+          <label htmlFor="state" className="form-label">
+            State
+          </label>
+          <select id="state" className="form-select" value={state} onChange={(e) => setState(e.target.value)}>
+            <option value="">Select…</option>
+            {INDIAN_STATES_AND_UTS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-sm-3">
+          <label htmlFor="pincode" className="form-label">
+            PIN code
+          </label>
+          <input
+            id="pincode"
+            type="text"
+            inputMode="numeric"
+            className="form-control"
+            value={pincode}
+            onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            placeholder="110001"
+            maxLength={6}
+          />
+        </div>
       </div>
 
       {error && <p className="text-danger small">{error}</p>}

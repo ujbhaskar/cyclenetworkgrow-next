@@ -21,6 +21,13 @@ export type UserProfile = {
   lastName: string | null;
   displayName: string;
   address: string | null;
+  // Structured location, distinct from `address` (free-text street
+  // address) — added so this app has clean data to filter/join on, instead
+  // of only Strava's free-text athlete profile fields (see
+  // src/lib/india-states.ts and the admin Strava riders list).
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
   stravaConnected: boolean;
   createdAt: string;
   // Reserved for future corporate/organization accounts (e.g. a "manager"
@@ -30,6 +37,9 @@ export type UserProfile = {
   organizationId: string | null;
 };
 
+// Indian PIN codes: 6 digits, first digit never 0.
+export const PINCODE_PATTERN = /^[1-9][0-9]{5}$/;
+
 // Fields a client is allowed to submit at signup — everything else on
 // UserProfile (uid, role, createdAt, stravaConnected, and the derived
 // email/phone/displayName) is computed or verified server-side only.
@@ -38,4 +48,7 @@ export type UserProfileSignupInput = {
   lastName?: string;
   address?: string;
   phone?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 };

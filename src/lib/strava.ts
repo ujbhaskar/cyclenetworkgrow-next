@@ -1,5 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
+import { normalizeIndianState } from "@/lib/india-states";
 
 // Same production collection the legacy Angular app (and this app's own
 // read-only rider-metrics.ts) already uses — deliberately NOT a new
@@ -40,11 +41,19 @@ export type StravaConnection = {
   athleteId: string;
   firstName: string | null;
   lastName: string | null;
+  /** Raw, as Strava/the rider's profile reports it — free text, keep for display. */
   city: string | null;
+  /** Raw, as Strava/the rider's profile reports it — free text, keep for display. */
   state: string | null;
   profileImageUrl: string | null;
   /** Legacy bare-digit format, as stored — see toLegacyPhone above. For admin display/identification, not for matching against this app's own (E.164) UserProfile.phone. */
   phone: string | null;
+  /** This app's users/{uid}, matched by phone — set only by listStravaConnections(); null elsewhere. */
+  linkedUid: string | null;
+  /** Best available city: the linked profile's (structured, if the rider filled it in) or the raw Strava text. Only meaningfully resolved by listStravaConnections(). */
+  resolvedCity: string | null;
+  /** Best available state: the linked profile's (structured) or normalizeIndianState(raw). Only meaningfully resolved by listStravaConnections(). */
+  resolvedState: string | null;
 };
 
 type LegacyAthleteTokenDoc = {
@@ -61,14 +70,23 @@ type LegacyAthleteTokenDoc = {
 };
 
 function mapConnection(id: string, data: LegacyAthleteTokenDoc): StravaConnection {
+  const city = data.athlete?.city ?? null;
+  const state = data.athlete?.state ?? null;
   return {
     athleteId: id,
     firstName: data.athlete?.firstname ?? null,
     lastName: data.athlete?.lastname ?? null,
-    city: data.athlete?.city ?? null,
-    state: data.athlete?.state ?? null,
+    city,
+    state,
     profileImageUrl: data.athlete?.profile ?? null,
     phone: data.athlete?.phone ?? null,
+    // Only listStravaConnections() below does the users/{uid} join; a
+    // single lookup (getStravaConnectionByPhone, used by the rider's own
+    // profile page) has no need for it, so these fall back to whatever
+    // resolves from the raw Strava text alone.
+    linkedUid: null,
+    resolvedCity: city,
+    resolvedState: normalizeIndianState(state),
   };
 }
 
@@ -84,11 +102,48 @@ export async function getStravaConnectionByPhone(e164Phone: string): Promise<Str
   return doc ? mapConnection(doc.id, doc.data() as LegacyAthleteTokenDoc) : null;
 }
 
-/** All Strava connections, for the admin "Strava-Connected Riders" list — see docs/ARCHITECTURE.md §7.1. */
+type LinkedUserSummary = { uid: string; city: string | null; state: string | null };
+
+/**
+ * All Strava connections, for the admin "Strava-Connected Riders" list —
+ * see docs/ARCHITECTURE.md §7.1. Joins each connection to a `users/{uid}`
+ * profile by phone (the only identifier Strava's stored data and this app's
+ * own profiles have in common — Strava doesn't give us an email), and
+ * prefers that profile's structured city/state (from the signup/profile
+ * pin+city+state fields) over Strava's free-text ones when a match exists.
+ * Riders who never signed up here, or don't have a phone on file, fall back
+ * to normalizeIndianState() on Strava's raw text — see src/lib/india-states.ts.
+ */
 export async function listStravaConnections(): Promise<StravaConnection[]> {
-  const snapshot = await adminDb.collection(STRAVA_TOKENS_COLLECTION).get();
-  return snapshot.docs
-    .map((doc) => mapConnection(doc.id, doc.data() as LegacyAthleteTokenDoc))
+  const [tokensSnapshot, usersSnapshot] = await Promise.all([
+    adminDb.collection(STRAVA_TOKENS_COLLECTION).get(),
+    adminDb.collection("users").get(),
+  ]);
+
+  const userByLegacyPhone = new Map<string, LinkedUserSummary>();
+  usersSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { phone?: string | null; city?: string | null; state?: string | null };
+    if (!data.phone) {
+      return;
+    }
+    userByLegacyPhone.set(toLegacyPhone(data.phone), {
+      uid: doc.id,
+      city: data.city ?? null,
+      state: data.state ?? null,
+    });
+  });
+
+  return tokensSnapshot.docs
+    .map((doc) => {
+      const connection = mapConnection(doc.id, doc.data() as LegacyAthleteTokenDoc);
+      const linked = connection.phone ? userByLegacyPhone.get(connection.phone) : undefined;
+      return {
+        ...connection,
+        linkedUid: linked?.uid ?? null,
+        resolvedCity: linked?.city || connection.resolvedCity,
+        resolvedState: linked?.state || connection.resolvedState,
+      };
+    })
     .sort((a, b) => (a.firstName ?? "").localeCompare(b.firstName ?? ""));
 }
 

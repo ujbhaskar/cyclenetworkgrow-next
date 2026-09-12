@@ -1,22 +1,37 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import Table from "react-bootstrap/Table";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
-import Pagination from "react-bootstrap/Pagination";
+import Dropdown from "react-bootstrap/Dropdown";
 import type { StravaConnection } from "@/lib/strava";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 30;
 
-// City/state are free text in the underlying data — same place written to by
-// two different apps over the years — so "Delhi", "DELHI" and "delhi" all
-// show up. Filters group by this normalized key; the dropdown displays one
-// representative (Title Case) label per group instead of one entry per
-// casing variant.
+// Rider-supplied Strava display names/cities are free text and some are
+// long (emoji, nicknames, hashtags) — cap each column so one long value
+// can't blow out the whole table's width. table-layout: fixed (set on
+// <Table> below) is what makes maxWidth actually bind instead of the
+// column just growing to fit content; overflowWrap lets long unbroken
+// strings wrap instead of overflowing.
+const CELL_STYLE: CSSProperties = {
+  // maxWidth: 300,
+  overflowWrap: "break-word"
+};
+
+// The "#" column just holds a short number — capping it tight gives Name
+// (the one most likely to need the room) more of the table's width.
+const SERIAL_CELL_STYLE: CSSProperties = { ...CELL_STYLE, maxWidth: 50, width: 50 };
+
+// City is still free text even after resolvedCity prefers a linked
+// profile's structured value (see src/lib/strava.ts) — no canonical city
+// list exists the way india-states.ts covers states. So city filtering
+// still groups by this case-insensitive key, just applied to resolvedCity
+// instead of the raw Strava text.
 function normalizeKey(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -28,10 +43,15 @@ function toTitleCase(value: string): string {
     .replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
-function buildFilterOptions(connections: StravaConnection[], field: "city" | "state") {
+// Sentinel for "has a state/city value, but it didn't resolve to anything
+// clean" — a real, selectable bucket rather than silently omitting these
+// riders from the filter entirely.
+const OTHER_BUCKET = "__OTHER__";
+
+function buildCityOptions(connections: StravaConnection[]) {
   const labelByKey = new Map<string, string>();
   for (const c of connections) {
-    const raw = c[field];
+    const raw = c.resolvedCity;
     if (!raw) continue;
     const key = normalizeKey(raw);
     if (!labelByKey.has(key)) {
@@ -41,6 +61,109 @@ function buildFilterOptions(connections: StravaConnection[], field: "city" | "st
   return Array.from(labelByKey.entries())
     .map(([key, label]) => ({ key, label }))
     .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// resolvedState is already a canonical Title Case value (from
+// normalizeIndianState or a linked profile's own state field) — no need to
+// re-normalize case, just collect the distinct values. Riders with a raw
+// state that didn't resolve to anything get bucketed as "Other".
+function buildStateOptions(connections: StravaConnection[]) {
+  const values = new Set<string>();
+  let hasOther = false;
+  for (const c of connections) {
+    if (c.resolvedState) {
+      values.add(c.resolvedState);
+    } else if (c.state) {
+      hasOther = true;
+    }
+  }
+  const options = Array.from(values)
+    .map((label) => ({ key: label, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  if (hasOther) {
+    options.push({ key: OTHER_BUCKET, label: "Other / unrecognized" });
+  }
+  return options;
+}
+
+type FilterOption = { key: string; label: string };
+
+/**
+ * Checkbox multi-select with its own search box at the top of the menu —
+ * plain <select multiple> needs ctrl/cmd-click (not obvious), and City in
+ * particular can have dozens of distinct values, so it needs to be
+ * searchable rather than just a long scroll.
+ */
+function MultiSelectFilter({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  options: FilterOption[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const filteredOptions = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle ? options.filter((o) => o.label.toLowerCase().includes(needle)) : options;
+  }, [options, query]);
+
+  function toggle(key: string) {
+    onChange(selected.includes(key) ? selected.filter((k) => k !== key) : [...selected, key]);
+  }
+
+  const summary =
+    selected.length === 0
+      ? `All ${label.toLowerCase()}`
+      : selected.length === 1
+        ? (options.find((o) => o.key === selected[0])?.label ?? selected[0])
+        : `${selected.length} ${label.toLowerCase()} selected`;
+
+  return (
+    <Dropdown autoClose="outside" onToggle={(isOpen) => !isOpen && setQuery("")}>
+      <Dropdown.Toggle variant="outline-secondary" className="w-100 text-truncate text-start">
+        {summary}
+      </Dropdown.Toggle>
+      <Dropdown.Menu style={{ maxHeight: 340, overflowY: "auto", minWidth: 240 }}>
+        <div className="px-2 pb-2">
+          <Form.Control
+            size="sm"
+            autoFocus
+            placeholder={`Search ${label.toLowerCase()}…`}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        {selected.length > 0 && (
+          <>
+            <Dropdown.Item as="button" onClick={() => onChange([])}>
+              Clear selection
+            </Dropdown.Item>
+            <Dropdown.Divider />
+          </>
+        )}
+        {filteredOptions.length === 0 ? (
+          <div className="px-3 py-2 text-muted small">No matches</div>
+        ) : (
+          filteredOptions.map((o) => (
+            <div key={o.key} className="px-3 py-1">
+              <Form.Check
+                type="checkbox"
+                id={`filter-${label}-${o.key}`}
+                label={o.label}
+                checked={selected.includes(o.key)}
+                onChange={() => toggle(o.key)}
+              />
+            </div>
+          ))
+        )}
+      </Dropdown.Menu>
+    </Dropdown>
+  );
 }
 
 export default function StravaConnectionsTable({
@@ -53,24 +176,36 @@ export default function StravaConnectionsTable({
   const [pendingId, setPendingId] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
-  const [page, setPage] = useState(1);
+  const [stateFilters, setStateFilters] = useState<string[]>([]);
+  const [cityFilters, setCityFilters] = useState<string[]>([]);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const stateOptions = useMemo(() => buildFilterOptions(connections, "state"), [connections]);
-  const cityOptions = useMemo(() => buildFilterOptions(connections, "city"), [connections]);
+  const stateOptions = useMemo(() => buildStateOptions(connections), [connections]);
+  const cityOptions = useMemo(() => buildCityOptions(connections), [connections]);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return connections.filter((c) => {
-      if (stateFilter && normalizeKey(c.state ?? "") !== stateFilter) {
-        return false;
+      if (stateFilters.length > 0) {
+        const matchesOther = stateFilters.includes(OTHER_BUCKET) && !c.resolvedState && !!c.state;
+        const matchesValue = !!c.resolvedState && stateFilters.includes(c.resolvedState);
+        if (!matchesOther && !matchesValue) {
+          return false;
+        }
       }
-      if (cityFilter && normalizeKey(c.city ?? "") !== cityFilter) {
+      if (cityFilters.length > 0 && !cityFilters.includes(normalizeKey(c.resolvedCity ?? ""))) {
         return false;
       }
       if (needle) {
-        const haystack = [[c.firstName, c.lastName].filter(Boolean).join(" "), c.city, c.state, c.phone, c.athleteId]
+        const haystack = [
+          [c.firstName, c.lastName].filter(Boolean).join(" "),
+          c.city,
+          c.state,
+          c.resolvedCity,
+          c.resolvedState,
+          c.phone,
+          c.athleteId,
+        ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase();
@@ -80,18 +215,44 @@ export default function StravaConnectionsTable({
       }
       return true;
     });
-  }, [connections, search, stateFilter, cityFilter]);
+  }, [connections, search, stateFilters, cityFilters]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageItems = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleItems = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
-  function updateFilters(next: Partial<{ search: string; stateFilter: string; cityFilter: string }>) {
-    if (next.search !== undefined) setSearch(next.search);
-    if (next.stateFilter !== undefined) setStateFilter(next.stateFilter);
-    if (next.cityFilter !== undefined) setCityFilter(next.cityFilter);
-    setPage(1);
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setVisibleCount(PAGE_SIZE);
   }
+
+  function handleStateFiltersChange(next: string[]) {
+    setStateFilters(next);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  function handleCityFiltersChange(next: string[]) {
+    setCityFilters(next);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  // Callback ref (not useEffect) so the observer re-attaches correctly as
+  // the sentinel element mounts/unmounts — it only renders while hasMore is
+  // true, so it comes and goes as filters change and as more rows load.
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const sentinelRef = useCallback((node: HTMLDivElement | null) => {
+    observerRef.current?.disconnect();
+    if (node) {
+      observerRef.current = new IntersectionObserver(
+        (entries) => {
+          if (entries[0]?.isIntersecting) {
+            setVisibleCount((c) => c + PAGE_SIZE);
+          }
+        },
+        { rootMargin: "300px" }
+      );
+      observerRef.current.observe(node);
+    }
+  }, []);
 
   async function handleRevoke(athleteId: string, name: string) {
     if (!confirm(`Revoke ${name}'s Strava connection? They'll need to reconnect from their profile.`)) {
@@ -112,7 +273,7 @@ export default function StravaConnectionsTable({
     <div>
       <h1 className="h3 mb-1">Strava-Connected Riders</h1>
       <p className="text-muted mb-4">
-        {filtered.length} of {connections.length} connected
+        Showing {visibleItems.length} of {filtered.length} matching ({connections.length} connected total)
       </p>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -122,28 +283,24 @@ export default function StravaConnectionsTable({
           <Form.Control
             placeholder="Search name, city, state, phone, athlete id…"
             value={search}
-            onChange={(e) => updateFilters({ search: e.target.value })}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </Col>
         <Col md={3}>
-          <Form.Select value={stateFilter} onChange={(e) => updateFilters({ stateFilter: e.target.value })}>
-            <option value="">All states</option>
-            {stateOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.label}
-              </option>
-            ))}
-          </Form.Select>
+          <MultiSelectFilter
+            label="States"
+            options={stateOptions}
+            selected={stateFilters}
+            onChange={handleStateFiltersChange}
+          />
         </Col>
         <Col md={3}>
-          <Form.Select value={cityFilter} onChange={(e) => updateFilters({ cityFilter: e.target.value })}>
-            <option value="">All cities</option>
-            {cityOptions.map((o) => (
-              <option key={o.key} value={o.key}>
-                {o.label}
-              </option>
-            ))}
-          </Form.Select>
+          <MultiSelectFilter
+            label="Cities"
+            options={cityOptions}
+            selected={cityFilters}
+            onChange={handleCityFiltersChange}
+          />
         </Col>
       </Row>
 
@@ -153,24 +310,24 @@ export default function StravaConnectionsTable({
         </p>
       ) : (
         <>
-          <Table responsive hover>
+          <Table responsive hover style={{ tableLayout: "fixed" }}>
             <thead>
               <tr>
-                <th>#</th>
-                <th>Name</th>
-                <th>City / State</th>
-                <th>Phone</th>
-                <th>Strava athlete id</th>
-                <th />
+                <th style={SERIAL_CELL_STYLE}>#</th>
+                <th style={CELL_STYLE}>Name</th>
+                <th style={CELL_STYLE}>City / State</th>
+                <th style={CELL_STYLE}>Phone</th>
+                <th style={CELL_STYLE}>Strava athlete id</th>
+                <th style={CELL_STYLE} />
               </tr>
             </thead>
             <tbody>
-              {pageItems.map((c, i) => {
+              {visibleItems.map((c, i) => {
                 const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "—";
                 return (
                   <tr key={c.athleteId}>
-                    <td>{(currentPage - 1) * PAGE_SIZE + i + 1}</td>
-                    <td>
+                    <td style={SERIAL_CELL_STYLE}>{i + 1}</td>
+                    <td style={CELL_STYLE}>
                       <a
                         href={`https://www.strava.com/athletes/${c.athleteId}`}
                         target="_blank"
@@ -179,10 +336,17 @@ export default function StravaConnectionsTable({
                         {name}
                       </a>
                     </td>
-                    <td>{[c.city, c.state].filter(Boolean).join(", ") || "—"}</td>
-                    <td>{c.phone ?? "—"}</td>
-                    <td>{c.athleteId}</td>
-                    <td>
+                    <td style={CELL_STYLE}>
+                      {[c.resolvedCity ?? c.city, c.resolvedState ?? c.state].filter(Boolean).join(", ") || "—"}
+                      {c.linkedUid && (
+                        <span className="badge bg-success bg-opacity-10 text-success ms-2" title="Matched to an app account by phone">
+                          linked
+                        </span>
+                      )}
+                    </td>
+                    <td style={CELL_STYLE}>{c.phone ?? "—"}</td>
+                    <td style={CELL_STYLE}>{c.athleteId}</td>
+                    <td style={CELL_STYLE}>
                       <Button
                         size="sm"
                         variant="outline-danger"
@@ -198,19 +362,11 @@ export default function StravaConnectionsTable({
             </tbody>
           </Table>
 
-          {totalPages > 1 && (
-            <Pagination>
-              <Pagination.Prev disabled={currentPage === 1} onClick={() => setPage((p) => Math.max(1, p - 1))} />
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                <Pagination.Item key={p} active={p === currentPage} onClick={() => setPage(p)}>
-                  {p}
-                </Pagination.Item>
-              ))}
-              <Pagination.Next
-                disabled={currentPage === totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              />
-            </Pagination>
+          {hasMore && (
+            // Intersection sentinel — scrolling this into view (300px early,
+            // via rootMargin above) loads the next 30. Empty on purpose;
+            // it's a trigger, not visible content.
+            <div ref={sentinelRef} style={{ height: 1 }} />
           )}
         </>
       )}
