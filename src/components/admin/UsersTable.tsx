@@ -121,7 +121,7 @@ export default function UsersTable({
 
       <CreateUserModal show={showCreate} onClose={() => setShowCreate(false)} onCreated={refetch} />
 
-      <ToastContainer position="top-end" className="p-3" style={{ zIndex: 1100 }}>
+      <ToastContainer position="top-center" className="p-3" style={{ zIndex: 1100 }}>
         <Toast bg="success" onClose={() => setRoleChangeToast(null)} show={!!roleChangeToast} delay={3000} autohide>
           <Toast.Body className="text-white">{roleChangeToast}</Toast.Body>
         </Toast>
