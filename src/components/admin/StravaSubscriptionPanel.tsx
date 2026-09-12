@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
@@ -54,11 +54,31 @@ export default function StravaSubscriptionPanel({
     }
   }
 
+  const boxStyle: CSSProperties = {
+    width: 120,
+    height: 90,
+    borderColor: "#dee2e6",
+  };
+
   return (
     <div style={{ maxWidth: 480 }}>
       <div className="d-flex align-items-center gap-3 mb-4">
-        <i className={`bi bi-plug-fill fs-1 ${subscription ? "text-success" : "text-secondary"}`} aria-hidden />
-        <i className={`bi bi-strava fs-1 ${subscription ? "text-danger" : "text-secondary"}`} aria-hidden />
+        <div className="border rounded d-flex align-items-center justify-content-center p-2" style={boxStyle}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- small local brand logo, no need for next/image here */}
+          <img src="/logo.png" alt="Cycle Network Grow" style={{ maxWidth: "100%", maxHeight: "100%" }} />
+        </div>
+        <i
+          className="bi bi-plug-fill fs-1"
+          style={{ color: subscription ? "#198754" : "#adb5bd" }}
+          aria-hidden
+        />
+        <div className="border rounded d-flex align-items-center justify-content-center" style={boxStyle}>
+          <i
+            className="bi bi-strava"
+            style={{ fontSize: "2.5rem", color: subscription ? "#FC4C02" : "#adb5bd" }}
+            aria-hidden
+          />
+        </div>
       </div>
 
       {subscription ? (
