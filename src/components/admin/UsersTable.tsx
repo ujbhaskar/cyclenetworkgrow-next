@@ -5,6 +5,8 @@ import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
+import Toast from "react-bootstrap/Toast";
+import ToastContainer from "react-bootstrap/ToastContainer";
 import { ROLES, type Role, type UserProfile } from "@/lib/models/user";
 import CreateUserModal from "./CreateUserModal";
 
@@ -18,6 +20,7 @@ export default function UsersTable({
   const [users, setUsers] = useState(initialUsers);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
 
   async function refetch() {
     const res = await fetch("/api/admin/users");
@@ -39,7 +42,10 @@ export default function UsersTable({
     if (!res.ok) {
       setUsers(previous);
       setError("Couldn't update that user's role.");
+      return;
     }
+    const user = previous.find((u) => u.uid === uid);
+    setRoleChangeToast(`${user?.displayName ?? "User"}'s role changed to ${role}.`);
   }
 
   async function handleDelete(uid: string) {
@@ -114,6 +120,12 @@ export default function UsersTable({
       </Table>
 
       <CreateUserModal show={showCreate} onClose={() => setShowCreate(false)} onCreated={refetch} />
+
+      <ToastContainer position="top-end" className="p-3" style={{ zIndex: 1100 }}>
+        <Toast bg="success" onClose={() => setRoleChangeToast(null)} show={!!roleChangeToast} delay={3000} autohide>
+          <Toast.Body className="text-white">{roleChangeToast}</Toast.Body>
+        </Toast>
+      </ToastContainer>
     </div>
   );
 }
