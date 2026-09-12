@@ -14,7 +14,7 @@ import { exchangeStravaCode, saveStravaConnection } from "@/lib/strava";
  *       - Strava
  *     responses:
  *       307:
- *         description: Redirects back to /profile/strava with a status query param
+ *         description: Redirects back to /profile with a status query param
  */
 export async function GET(request: Request) {
   // Redirects to /login itself if there's no session — a rider must already
@@ -26,12 +26,12 @@ export async function GET(request: Request) {
   const error = url.searchParams.get("error");
 
   // Cloud Run's `request.url` resolves to the container's internal bind
-  // address (0.0.0.0:8080), not the public host — same reason
-  // /profile/strava builds its redirect_uri from these headers instead.
+  // address (0.0.0.0:8080), not the public host — same reason /profile
+  // builds its redirect_uri from these headers instead.
   const headersList = await headers();
   const host = headersList.get("x-forwarded-host") ?? headersList.get("host") ?? url.host;
   const protocol = headersList.get("x-forwarded-proto") ?? "https";
-  const profileUrl = new URL("/profile/strava", `${protocol}://${host}`);
+  const profileUrl = new URL("/profile", `${protocol}://${host}`);
 
   if (error || !code) {
     profileUrl.searchParams.set("strava_error", error ?? "missing_code");
