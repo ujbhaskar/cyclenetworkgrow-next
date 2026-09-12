@@ -1,10 +1,10 @@
-import PlaceholderPage from "@/components/PlaceholderPage";
+import { requireRole } from "@/lib/auth/dal";
+import { listStravaConnections } from "@/lib/strava";
+import StravaConnectionsTable from "@/components/admin/StravaConnectionsTable";
 
-export default function AdminStravaRidersPage() {
-  return (
-    <PlaceholderPage
-      title="Strava-Connected Riders"
-      description="List connected riders, revoke a connection — see docs/ARCHITECTURE.md §7.1."
-    />
-  );
+export default async function AdminStravaRidersPage() {
+  await requireRole("admin");
+  const connections = await listStravaConnections();
+
+  return <StravaConnectionsTable initialConnections={connections} />;
 }

@@ -43,6 +43,8 @@ export type StravaConnection = {
   city: string | null;
   state: string | null;
   profileImageUrl: string | null;
+  /** Legacy bare-digit format, as stored — see toLegacyPhone above. For admin display/identification, not for matching against this app's own (E.164) UserProfile.phone. */
+  phone: string | null;
 };
 
 type LegacyAthleteTokenDoc = {
@@ -66,6 +68,7 @@ function mapConnection(id: string, data: LegacyAthleteTokenDoc): StravaConnectio
     city: data.athlete?.city ?? null,
     state: data.athlete?.state ?? null,
     profileImageUrl: data.athlete?.profile ?? null,
+    phone: data.athlete?.phone ?? null,
   };
 }
 
@@ -79,6 +82,14 @@ export async function getStravaConnectionByPhone(e164Phone: string): Promise<Str
     .get();
   const doc = snapshot.docs[0];
   return doc ? mapConnection(doc.id, doc.data() as LegacyAthleteTokenDoc) : null;
+}
+
+/** All Strava connections, for the admin "Strava-Connected Riders" list — see docs/ARCHITECTURE.md §7.1. */
+export async function listStravaConnections(): Promise<StravaConnection[]> {
+  const snapshot = await adminDb.collection(STRAVA_TOKENS_COLLECTION).get();
+  return snapshot.docs
+    .map((doc) => mapConnection(doc.id, doc.data() as LegacyAthleteTokenDoc))
+    .sort((a, b) => (a.firstName ?? "").localeCompare(b.firstName ?? ""));
 }
 
 /**
