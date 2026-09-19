@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
 import { getEventBySlug, getPublicEventRiders, isEventUpcoming } from "@/lib/events";
-import { getEventLeaderboard } from "@/lib/rider-metrics";
+import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
 import Aw80dLeaderboard from "@/components/events/Aw80dLeaderboard";
@@ -19,7 +19,7 @@ import { MILESTONES_KM, MILESTONE_QUOTAS } from "@/lib/models/rider-metric";
 // gets its own leaderboard implementation rather than forcing one generic
 // shape onto every event; everything else falls back to a plain distance
 // figure with no event-specific leaderboard.
-const MILESTONE_QUOTA_EVENT_ID = "EPVUTrG0Vvj6dspIe5Bl";
+const MILESTONE_QUOTA_EVENT_ID = EVENT_1177_ID;
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {

@@ -62,6 +62,26 @@ use, keyed by the legacy bare-digit phone format.
   may replace whatever's already registered for production `letscng.com` rather than
   adding alongside it.
 
+### Webhook (`/api/strava/webhook`) and `stravaWebhookEvents`
+
+Strava allows only **one push subscription per Client ID, globally** — same sharing
+caveat as everything else Strava-related here (see the admin Strava Subscription page).
+Every event received is recorded to `stravaWebhookEvents` regardless of whether it goes
+on to create/update/delete a ride (raw audit trail — lets a failed/skipped event be
+inspected or manually replayed). That collection has a **Firestore TTL policy on its
+`expiresAt` field** (30 days after `receivedAt`, set by the route itself), so it doesn't
+grow forever — this is debug/audit data, not ride data (`rides/{phone}` is untouched by
+the TTL and never expires). Created with:
+
+```bash
+gcloud firestore fields ttls update expiresAt \
+  --collection-group=stravaWebhookEvents --enable-ttl --project=challenge1177
+```
+
+TTL deletion isn't instant (up to 24h after `expiresAt` passes) and only applies where
+the field is an actual Timestamp — the ~5,900 events recorded before this was added
+stored `receivedAt` as a string, so those predate `expiresAt` and won't be swept.
+
 ## Razorpay (registration payment sync)
 
 Replaces the old portal's flow (Razorpay export → pasted into a Google Sheet → admin

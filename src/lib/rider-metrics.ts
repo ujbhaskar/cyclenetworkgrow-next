@@ -14,6 +14,11 @@ import {
   type EventLeaderboardData,
 } from "@/lib/models/rider-metric";
 
+// The "1177 Grand Endurance" event's doc id — shared with the event detail
+// page and the Strava webhook so both agree on which event "current"
+// means. Same pattern as AW80D_EVENT_ID in aw80d.ts.
+export const EVENT_1177_ID = "EPVUTrG0Vvj6dspIe5Bl";
+
 export { MILESTONES_KM, MILESTONE_QUOTAS };
 export type {
   MilestoneKm,
