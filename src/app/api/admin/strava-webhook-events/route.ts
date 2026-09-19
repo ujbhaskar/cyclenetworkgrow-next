@@ -25,6 +25,21 @@ const MAX_LIMIT = 200;
  *         name: limit
  *         schema:
  *           type: integer
+ *       - in: query
+ *         name: ownerId
+ *         schema:
+ *           type: string
+ *         description: Strava athlete id — exact match.
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *         description: ISO datetime — only events received at or after this.
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *         description: ISO datetime — only events received at or before this.
  *     responses:
  *       200:
  *         description: "{ events: [...], nextCursor: string | null }"
@@ -35,7 +50,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const cursor = url.searchParams.get("cursor");
   const limit = Math.min(Number(url.searchParams.get("limit")) || 100, MAX_LIMIT);
+  const ownerId = url.searchParams.get("ownerId") || undefined;
+  const from = url.searchParams.get("from") || undefined;
+  const to = url.searchParams.get("to") || undefined;
 
-  const page = await listStravaWebhookEvents(cursor, limit);
+  const page = await listStravaWebhookEvents(cursor, limit, { ownerId, from, to });
   return Response.json(page);
 }

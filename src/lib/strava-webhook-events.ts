@@ -21,14 +21,38 @@ export type StravaWebhookEventPage = {
   nextCursor: string | null;
 };
 
+export type StravaWebhookEventFilters = {
+  /** Strava athlete id (owner_id) — exact match. */
+  ownerId?: string;
+  /** ISO datetime — only events received at or after this. */
+  from?: string;
+  /** ISO datetime — only events received at or before this. */
+  to?: string;
+};
+
 /**
  * Newest-first page of the raw webhook audit log (see the webhook route
  * and docs/DEPLOY.md) — cursor-paginated on `receivedAt` rather than
  * fetching everything at once, since this collection is thousands of rows
- * and grows continuously.
+ * and grows continuously. Filtering by ownerId needs a composite index
+ * (owner_id asc, receivedAt desc) — see docs/DEPLOY.md.
  */
-export async function listStravaWebhookEvents(cursor: string | null, limit: number): Promise<StravaWebhookEventPage> {
+export async function listStravaWebhookEvents(
+  cursor: string | null,
+  limit: number,
+  filters: StravaWebhookEventFilters = {},
+): Promise<StravaWebhookEventPage> {
   let query = adminDb.collection(COLLECTION).orderBy("receivedAt", "desc").limit(limit);
+  if (filters.ownerId) {
+    const ownerIdNumber = Number(filters.ownerId);
+    query = query.where("owner_id", "==", Number.isNaN(ownerIdNumber) ? filters.ownerId : ownerIdNumber);
+  }
+  if (filters.from) {
+    query = query.where("receivedAt", ">=", Timestamp.fromDate(new Date(filters.from)));
+  }
+  if (filters.to) {
+    query = query.where("receivedAt", "<=", Timestamp.fromDate(new Date(filters.to)));
+  }
   if (cursor) {
     query = query.startAfter(Timestamp.fromDate(new Date(cursor)));
   }

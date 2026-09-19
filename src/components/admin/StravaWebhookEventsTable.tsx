@@ -1,11 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import Table from "react-bootstrap/Table";
 import Button from "react-bootstrap/Button";
 import Badge from "react-bootstrap/Badge";
+import Form from "react-bootstrap/Form";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
 import type { StravaWebhookEventRow } from "@/lib/strava-webhook-events";
 
+const PAGE_SIZE = 50;
 const LOAD_MORE_SIZE = 100;
 
 const ASPECT_BADGE_VARIANT: Record<string, string> = {
@@ -13,6 +17,18 @@ const ASPECT_BADGE_VARIANT: Record<string, string> = {
   update: "secondary",
   delete: "danger",
 };
+
+type Filters = { ownerId: string; from: string; to: string };
+const EMPTY_FILTERS: Filters = { ownerId: "", from: "", to: "" };
+
+// datetime-local's value has no timezone — new Date(value) treats it as
+// local time already, so this only needs to add seconds/exist-check, not
+// any real conversion.
+function toIso(datetimeLocalValue: string): string | undefined {
+  if (!datetimeLocalValue) return undefined;
+  const date = new Date(datetimeLocalValue);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
 
 export default function StravaWebhookEventsTable({
   initialEvents,
@@ -25,18 +41,63 @@ export default function StravaWebhookEventsTable({
   const [cursor, setCursor] = useState(initialCursor);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formValues, setFormValues] = useState<Filters>(EMPTY_FILTERS);
+  const [activeFilters, setActiveFilters] = useState<Filters>(EMPTY_FILTERS);
+
+  async function fetchPage(filters: Filters, afterCursor: string | null, limit: number) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (afterCursor) params.set("cursor", afterCursor);
+    if (filters.ownerId) params.set("ownerId", filters.ownerId.trim());
+    const fromIso = toIso(filters.from);
+    const toIsoValue = toIso(filters.to);
+    if (fromIso) params.set("from", fromIso);
+    if (toIsoValue) params.set("to", toIsoValue);
+
+    const res = await fetch(`/api/admin/strava-webhook-events?${params}`);
+    if (!res.ok) {
+      throw new Error("Failed to load events");
+    }
+    return (await res.json()) as { events: StravaWebhookEventRow[]; nextCursor: string | null };
+  }
+
+  async function applyFilters(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await fetchPage(formValues, null, PAGE_SIZE);
+      setEvents(page.events);
+      setCursor(page.nextCursor);
+      setActiveFilters(formValues);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function clearFilters() {
+    setFormValues(EMPTY_FILTERS);
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await fetchPage(EMPTY_FILTERS, null, PAGE_SIZE);
+      setEvents(page.events);
+      setCursor(page.nextCursor);
+      setActiveFilters(EMPTY_FILTERS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function loadMore() {
     if (!cursor) return;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ cursor, limit: String(LOAD_MORE_SIZE) });
-      const res = await fetch(`/api/admin/strava-webhook-events?${params}`);
-      if (!res.ok) {
-        throw new Error("Failed to load more events");
-      }
-      const page: { events: StravaWebhookEventRow[]; nextCursor: string | null } = await res.json();
+      const page = await fetchPage(activeFilters, cursor, LOAD_MORE_SIZE);
       setEvents((prev) => [...prev, ...page.events]);
       setCursor(page.nextCursor);
     } catch (err) {
@@ -46,8 +107,50 @@ export default function StravaWebhookEventsTable({
     }
   }
 
+  const hasActiveFilters = Boolean(activeFilters.ownerId || activeFilters.from || activeFilters.to);
+
   return (
     <div>
+      <Form onSubmit={applyFilters} className="mb-4">
+        <Row className="g-3 align-items-end">
+          <Col xs={12} sm={4} md={3}>
+            <Form.Label>Athlete (owner) ID</Form.Label>
+            <Form.Control
+              value={formValues.ownerId}
+              onChange={(e) => setFormValues((v) => ({ ...v, ownerId: e.target.value }))}
+              placeholder="e.g. 80181621"
+              inputMode="numeric"
+            />
+          </Col>
+          <Col xs={12} sm={4} md={3}>
+            <Form.Label>From</Form.Label>
+            <Form.Control
+              type="datetime-local"
+              value={formValues.from}
+              onChange={(e) => setFormValues((v) => ({ ...v, from: e.target.value }))}
+            />
+          </Col>
+          <Col xs={12} sm={4} md={3}>
+            <Form.Label>To</Form.Label>
+            <Form.Control
+              type="datetime-local"
+              value={formValues.to}
+              onChange={(e) => setFormValues((v) => ({ ...v, to: e.target.value }))}
+            />
+          </Col>
+          <Col xs={12} md={3} className="d-flex gap-2">
+            <Button type="submit" disabled={loading}>
+              Filter
+            </Button>
+            {hasActiveFilters && (
+              <Button type="button" variant="outline-secondary" onClick={clearFilters} disabled={loading}>
+                Clear
+              </Button>
+            )}
+          </Col>
+        </Row>
+      </Form>
+
       <div style={{ overflowX: "auto" }}>
         <Table striped bordered hover size="sm" className="text-center align-middle">
           <thead>
@@ -97,7 +200,9 @@ export default function StravaWebhookEventsTable({
         </Table>
       </div>
 
-      {events.length === 0 && <p className="text-muted">No webhook events recorded (yet).</p>}
+      {events.length === 0 && !loading && (
+        <p className="text-muted">No webhook events {hasActiveFilters ? "match those filters" : "recorded (yet)"}.</p>
+      )}
 
       <div className="text-center text-muted small mb-3">Showing {events.length} events</div>
 
