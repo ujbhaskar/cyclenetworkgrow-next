@@ -11,22 +11,23 @@ env:
     secret: STRAVA_CLIENT_SECRET
     availability:
       - RUNTIME
-  - variable: RAZORPAY_KEY_ID
-    secret: RAZORPAY_KEY_ID
-    availability:
-      - RUNTIME
-  - variable: RAZORPAY_KEY_SECRET
-    secret: RAZORPAY_KEY_SECRET
-    availability:
-      - RUNTIME
-  - variable: RAZORPAY_WEBHOOK_SECRET
-    secret: RAZORPAY_WEBHOOK_SECRET
-    availability:
-      - RUNTIME
-  - variable: GOOGLE_SHEETS_CREDENTIALS_JSON
-    secret: GOOGLE_SHEETS_CREDENTIALS_JSON
-    availability:
-      - RUNTIME
+  # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
+  # deliberately not bound here yet — src/lib/razorpay.ts and
+  # /api/webhooks/razorpay exist but nothing calls them (registration sync
+  # went with the Google Sheets route instead; see docs/DEPLOY.md). Add
+  # these back (with real secrets created first) if that work resumes.
+  #
+  # GOOGLE_SHEETS_CREDENTIALS_JSON is temporarily unbound too — the build
+  # fails outright if a referenced secret doesn't exist yet in Secret
+  # Manager, and this one hasn't been created there yet (see docs/DEPLOY.md's
+  # Google Sheets section for the exact `secrets:set` + `:grantaccess`
+  # commands). Registration sync (RegistrationSyncPanel /
+  # /api/admin/legacy-events/.../sync-registrations) will 500 until this is
+  # re-added — rebind it once the secret exists.
+  # - variable: GOOGLE_SHEETS_CREDENTIALS_JSON
+  #   secret: GOOGLE_SHEETS_CREDENTIALS_JSON
+  #   availability:
+  #     - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more
