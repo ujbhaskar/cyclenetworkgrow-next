@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import { sendPasswordResetEmail } from "firebase/auth";
-import Container from "react-bootstrap/Container";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
+import InputGroup from "react-bootstrap/InputGroup";
 import { auth } from "@/lib/firebase/client";
+import AuthPageLayout from "./AuthPageLayout";
 
 // Phone-based reset is intentionally not wired up here yet: now that email
 // is the sole login credential (see docs/ARCHITECTURE.md §4), resetting via
@@ -40,30 +41,40 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <Container className="py-3" style={{ maxWidth: 420 }}>
-      <h1 className="h3 mb-4">Reset your password</h1>
-
+    <AuthPageLayout
+      eyebrow="Reset password"
+      heading="Reset your password"
+      subtitle={
+        emailSent
+          ? "If an account exists for that email, a reset link has been sent."
+          : "Enter your account's email and we'll send you a link to reset your password."
+      }
+    >
       {!emailSent ? (
         <Form onSubmit={handleSendResetEmail}>
           <Form.Group className="mb-3">
-            <Form.Label>Email</Form.Label>
-            <Form.Control
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <Form.Label>Email address</Form.Label>
+            <InputGroup>
+              <InputGroup.Text>
+                <i className="bi bi-envelope" aria-hidden />
+              </InputGroup.Text>
+              <Form.Control
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="rider@letscng.com"
+                required
+              />
+            </InputGroup>
           </Form.Group>
           {error && <p className="text-danger small">{error}</p>}
-          <Button type="submit" className="w-100" disabled={pending}>
+          <Button type="submit" variant="success" className="w-100" disabled={pending}>
             {pending ? "Sending…" : "Send reset link"}
           </Button>
         </Form>
       ) : (
-        <p className="text-muted">
-          If an account exists for that email, a reset link has been sent. Check your inbox.
-        </p>
+        <p className="text-muted mb-0">Check your inbox for the link.</p>
       )}
-    </Container>
+    </AuthPageLayout>
   );
 }

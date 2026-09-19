@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import Container from "react-bootstrap/Container";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import InputGroup from "react-bootstrap/InputGroup";
@@ -43,13 +42,15 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
       // stored as mandatory contact info only.
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await establishSession(credential.user, {
-        firstName,
-        lastName,
-        address: address || undefined,
-        phone: fullPhone,
-        city: city || undefined,
-        state: state || undefined,
-        pincode: pincode || undefined,
+        profile: {
+          firstName,
+          lastName,
+          address: address || undefined,
+          phone: fullPhone,
+          city: city || undefined,
+          state: state || undefined,
+          pincode: pincode || undefined,
+        },
       });
       router.push(redirectTo);
       router.refresh();
@@ -63,27 +64,37 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
   }
 
   return (
-    <Container className="py-3" style={{ maxWidth: 420 }}>
-      <h1 className="h3 mb-4">Sign up</h1>
-
+    <>
       <Form onSubmit={handleSubmit}>
-        <Form.Group className="mb-3">
-          <Form.Label>First name</Form.Label>
-          <Form.Control value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-        </Form.Group>
-        <Form.Group className="mb-3">
-          <Form.Label>Last name</Form.Label>
-          <Form.Control value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-        </Form.Group>
+        <div className="row g-3 mb-3">
+          <div className="col-sm-6">
+            <Form.Group>
+              <Form.Label>First name</Form.Label>
+              <Form.Control value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+            </Form.Group>
+          </div>
+          <div className="col-sm-6">
+            <Form.Group>
+              <Form.Label>Last name</Form.Label>
+              <Form.Control value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+            </Form.Group>
+          </div>
+        </div>
 
         <Form.Group className="mb-3">
-          <Form.Label>Email</Form.Label>
-          <Form.Control
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <Form.Label>Email address</Form.Label>
+          <InputGroup>
+            <InputGroup.Text>
+              <i className="bi bi-envelope" aria-hidden />
+            </InputGroup.Text>
+            <Form.Control
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="rider@letscng.com"
+              required
+            />
+          </InputGroup>
         </Form.Group>
 
         <Form.Group className="mb-3">
@@ -113,7 +124,7 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
           </InputGroup>
         </Form.Group>
 
-        <PasswordInput value={password} onChange={setPassword} minLength={6} required />
+        <PasswordInput value={password} onChange={setPassword} minLength={6} required icon="bi-lock" />
 
         <Form.Group className="mb-3">
           <Form.Label>Address (optional)</Form.Label>
@@ -156,17 +167,27 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
         </div>
 
         {error && <p className="text-danger small">{error}</p>}
-        <Button type="submit" className="w-100" disabled={pending}>
+        <Button
+          type="submit"
+          variant="success"
+          className="w-100 d-flex align-items-center justify-content-center gap-2"
+          disabled={pending}
+        >
           {pending ? "Creating account…" : "Create account"}
+          {!pending && <i className="bi bi-arrow-right" aria-hidden />}
         </Button>
       </Form>
 
-      <div className="text-center text-muted small my-3">or</div>
+      <div className="d-flex align-items-center gap-3 text-muted small my-3">
+        <hr className="flex-grow-1 my-0" />
+        or continue with
+        <hr className="flex-grow-1 my-0" />
+      </div>
       <GoogleSignInButton redirectTo={redirectTo} />
 
-      <div className="text-center small mt-4">
-        <Link href="/login">Already have an account? Log in</Link>
-      </div>
-    </Container>
+      <p className="text-center small mt-4 mb-0">
+        Already have an account? <Link href="/login">Log in</Link>
+      </p>
+    </>
   );
 }

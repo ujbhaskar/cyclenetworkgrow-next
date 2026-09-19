@@ -12,6 +12,7 @@ export default function PasswordInput({
   minLength,
   required,
   disabled,
+  icon,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -19,6 +20,7 @@ export default function PasswordInput({
   minLength?: number;
   required?: boolean;
   disabled?: boolean;
+  icon?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -26,6 +28,11 @@ export default function PasswordInput({
     <Form.Group className="mb-3">
       <Form.Label>{label}</Form.Label>
       <InputGroup>
+        {icon && (
+          <InputGroup.Text>
+            <i className={`bi ${icon}`} aria-hidden />
+          </InputGroup.Text>
+        )}
         <Form.Control
           type={visible ? "text" : "password"}
           value={value}

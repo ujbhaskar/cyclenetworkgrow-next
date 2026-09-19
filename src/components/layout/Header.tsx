@@ -102,7 +102,7 @@ export default function Header({ user }: { user: HeaderUser | null }) {
             width={160}
             height={48}
             priority
-            style={{ height: 40, width: "auto" }}
+            style={{ height: 60, width: "auto" }}
           />
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="main-nav" className="nav-toggle-btn">

@@ -17,7 +17,7 @@ export default function GoogleSignInButton({ redirectTo = "/" }: { redirectTo?: 
     setPending(true);
     try {
       const credential = await signInWithPopup(auth, new GoogleAuthProvider());
-      await establishSession(credential.user);
+      await establishSession(credential.user, { rememberMe: true });
       router.push(redirectTo);
       router.refresh();
     } catch {

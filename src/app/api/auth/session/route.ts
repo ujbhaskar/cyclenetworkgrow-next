@@ -41,6 +41,9 @@ const FIVE_DAYS_SECONDS = 5 * 24 * 60 * 60;
  *                     type: string
  *                   pincode:
  *                     type: string
+ *               rememberMe:
+ *                 type: boolean
+ *                 description: Defaults to true. When explicitly false, the cookie is set without a Max-Age (cleared when the browser closes) instead of persisting for its full 5-day life.
  *     responses:
  *       200:
  *         description: Session cookie set
@@ -48,7 +51,7 @@ const FIVE_DAYS_SECONDS = 5 * 24 * 60 * 60;
  *         description: Invalid ID token
  */
 export async function POST(request: Request) {
-  const { idToken, profile } = await request.json();
+  const { idToken, profile, rememberMe } = await request.json();
 
   if (typeof idToken !== "string" || !idToken) {
     return Response.json({ error: "idToken is required" }, { status: 400 });
@@ -66,7 +69,10 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: FIVE_DAYS_SECONDS,
+      // "Remember me" unchecked (rememberMe === false) → a browser session
+      // cookie (no maxAge) that's discarded when the browser closes, instead
+      // of persisting for the underlying session cookie's full 5-day life.
+      ...(rememberMe === false ? {} : { maxAge: FIVE_DAYS_SECONDS }),
     });
 
     // uid/email come from the verified token, never the client-supplied

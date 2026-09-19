@@ -3,22 +3,37 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
-import Container from "react-bootstrap/Container";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import Link from "next/link";
 import { auth } from "@/lib/firebase/client";
+import AuthPageLayout from "./AuthPageLayout";
 import PasswordInput from "./PasswordInput";
 
 export default function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const oobCode = searchParams.get("oobCode");
+  const mode = searchParams.get("mode");
 
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    // This page is also the project's one Firebase Auth email action
+    // handler (see docs/DEPLOY.md's Auth section — the project-wide Action
+    // URL points here so password reset emails open our own styled page
+    // instead of Firebase's generic hosted one). Only mode=resetPassword is
+    // actually built out; hand any other mode (email verification, etc. —
+    // unused today, but the handler still has to cover them) back to
+    // Firebase's own hosted widget rather than failing here.
+    if (mode && mode !== "resetPassword") {
+      const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+      window.location.replace(`https://${authDomain}/__/auth/action?${searchParams.toString()}`);
+    }
+  }, [mode, searchParams]);
 
   useEffect(() => {
     if (!oobCode) {
@@ -28,6 +43,10 @@ export default function ResetPasswordForm() {
       .then(setEmail)
       .catch(() => setError("This reset link is invalid or has expired."));
   }, [oobCode]);
+
+  if (mode && mode !== "resetPassword") {
+    return null;
+  }
 
   const invalidLink = !oobCode || error;
 
@@ -48,31 +67,38 @@ export default function ResetPasswordForm() {
 
   if (done) {
     return (
-      <Container className="py-3" style={{ maxWidth: 420 }}>
-        <h1 className="h3 mb-3">Password updated</h1>
-        <p className="text-muted">
-          Your password has been reset. <Link href="/login">Log in</Link>.
-        </p>
-      </Container>
+      <AuthPageLayout
+        eyebrow="Reset password"
+        heading="Password updated"
+        subtitle="Your password has been reset successfully."
+      >
+        <Link href="/login" className="btn btn-success w-100">
+          Log in
+        </Link>
+      </AuthPageLayout>
     );
   }
 
   if (invalidLink) {
     return (
-      <Container className="py-3" style={{ maxWidth: 420 }}>
-        <h1 className="h3 mb-3">Invalid link</h1>
-        <p className="text-muted">
-          {error ?? "This reset link is invalid or has expired."}{" "}
-          <Link href="/forgot-password">Request a new one</Link>.
-        </p>
-      </Container>
+      <AuthPageLayout
+        eyebrow="Reset password"
+        heading="Invalid link"
+        subtitle={error ?? "This reset link is invalid or has expired."}
+      >
+        <Link href="/forgot-password" className="btn btn-success w-100">
+          Request a new link
+        </Link>
+      </AuthPageLayout>
     );
   }
 
   return (
-    <Container className="py-3" style={{ maxWidth: 420 }}>
-      <h1 className="h3 mb-4">Set a new password</h1>
-      {email && <p className="text-muted small">Resetting password for {email}</p>}
+    <AuthPageLayout
+      eyebrow="Reset password"
+      heading="Set a new password"
+      subtitle={email ? `Resetting password for ${email}` : "Enter a new password for your account."}
+    >
       <Form onSubmit={handleSubmit}>
         <PasswordInput
           label="New password"
@@ -81,11 +107,12 @@ export default function ResetPasswordForm() {
           minLength={6}
           required
           disabled={!email}
+          icon="bi-lock"
         />
-        <Button type="submit" className="w-100" disabled={pending || !email}>
+        <Button type="submit" variant="success" className="w-100" disabled={pending || !email}>
           {pending ? "Saving…" : "Save new password"}
         </Button>
       </Form>
-    </Container>
+    </AuthPageLayout>
   );
 }

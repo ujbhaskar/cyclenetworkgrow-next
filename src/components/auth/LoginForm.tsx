@@ -3,14 +3,13 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import Container from "react-bootstrap/Container";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
+import InputGroup from "react-bootstrap/InputGroup";
 import Link from "next/link";
 import { auth } from "@/lib/firebase/client";
 import { establishSession } from "@/lib/auth/establish-session";
 import { looksLikeEmail } from "@/lib/auth/phone";
-import GoogleSignInButton from "./GoogleSignInButton";
 import PasswordInput from "./PasswordInput";
 
 function friendlyError(code: string): string {
@@ -49,6 +48,7 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -59,7 +59,7 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
     try {
       const email = await resolveToEmail(identifier);
       const credential = await signInWithEmailAndPassword(auth, email, password);
-      await establishSession(credential.user);
+      await establishSession(credential.user, { rememberMe });
       router.push(redirectTo);
       router.refresh();
     } catch (err) {
@@ -70,33 +70,53 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
   }
 
   return (
-    <Container className="py-3" style={{ maxWidth: 420 }}>
-      <h1 className="h3 mb-4">Log in</h1>
+    <>
       <Form onSubmit={handleSubmit}>
         <Form.Group className="mb-3">
           <Form.Label>Email or phone number</Form.Label>
-          <Form.Control
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="you@example.com or +91 98765 43210"
-            required
-          />
+          <InputGroup>
+            <InputGroup.Text>
+              <i className="bi bi-person" aria-hidden />
+            </InputGroup.Text>
+            <Form.Control
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="rider@letscng.com or 98765 43210"
+              required
+            />
+          </InputGroup>
+          <Form.Text className="text-muted">10-digit phone number, no country code needed.</Form.Text>
         </Form.Group>
-        <PasswordInput value={password} onChange={setPassword} required />
+        <PasswordInput value={password} onChange={setPassword} required icon="bi-lock" />
+
+        <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+          <Form.Check
+            type="checkbox"
+            id="remember-me"
+            label="Remember me"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+          />
+          <Link href="/forgot-password" className="small">
+            Forgot password?
+          </Link>
+        </div>
+
         {error && <p className="text-danger small">{error}</p>}
-        <Button type="submit" className="w-100 mb-3" disabled={pending}>
-          {pending ? "Logging in…" : "Log in"}
+        <Button
+          type="submit"
+          variant="success"
+          className="w-100 mb-3 d-flex align-items-center justify-content-center gap-2"
+          disabled={pending}
+        >
+          {pending ? "Logging in…" : "Login"}
+          {!pending && <i className="bi bi-arrow-right" aria-hidden />}
         </Button>
       </Form>
 
-      <div className="text-center text-muted small mb-3">or</div>
-      <GoogleSignInButton redirectTo={redirectTo} />
-
-      <div className="text-center small mt-4">
-        <Link href="/forgot-password">Forgot password?</Link>
-        <span className="mx-2">·</span>
-        <Link href="/signup">Create an account</Link>
-      </div>
-    </Container>
+      <p className="text-center small mt-4 mb-0">
+        Don&apos;t have an account? <Link href="/signup">Sign up</Link>
+      </p>
+    </>
   );
 }
