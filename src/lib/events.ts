@@ -95,6 +95,11 @@ export function isEventUpcoming(event: Pick<EventCard, "endDate">): boolean {
   return new Date(event.endDate).getTime() >= Date.now();
 }
 
+/** Whether an event's start date hasn't arrived yet. */
+export function isEventNotYetStarted(event: Pick<EventCard, "startDate">): boolean {
+  return new Date(event.startDate).getTime() > Date.now();
+}
+
 /**
  * Upcoming events, soonest first — end date in the future. Real end date is
  * used rather than the `status` field, since `status` is inconsistently

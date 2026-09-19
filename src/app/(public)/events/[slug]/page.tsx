@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
-import { getEventBySlug, getPublicEventRiders, isEventUpcoming } from "@/lib/events";
+import { getEventBySlug, getPublicEventRiders, isEventUpcoming, isEventNotYetStarted } from "@/lib/events";
 import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
@@ -40,6 +40,7 @@ export default async function EventDetailPage({
   }
 
   const isUpcoming = isEventUpcoming(event);
+  const eventNotYetStarted = isEventNotYetStarted(event);
   const isAw80d = event.id === AW80D_EVENT_ID;
   const leaderboard = isAw80d ? null : await getEventLeaderboard(event);
   const aw80dLeaderboard = isAw80d ? await getAw80dLeaderboard(event.startDate, event.endDate) : null;
@@ -133,6 +134,16 @@ export default async function EventDetailPage({
         <Container className="pb-5" style={{ maxWidth: 1100 }}>
           <hr className="mb-4" />
           <h2 className="h4 fw-bold mb-4">Event Leaderboard</h2>
+          {/* Trial-mode banner — pairs with rider-metrics.ts's TRIAL_LOOKBACK_MS
+              widening the window before the official start. Disappears on its
+              own once `now` passes event.startDate, no manual removal needed. */}
+          {leaderboard && leaderboard.riders.length > 0 && eventNotYetStarted && (
+            <div className="alert alert-warning">
+              This leaderboard is a <strong>trial</strong> — it&apos;s showing early test rides so we can confirm
+              data is syncing correctly. It will reset on {formatDate(event.startDate)}, when the event officially
+              starts.
+            </div>
+          )}
           {aw80dLeaderboard ? (
             <Aw80dLeaderboard data={aw80dLeaderboard} eventStartDate={event.startDate} eventEndDate={event.endDate} />
           ) : (

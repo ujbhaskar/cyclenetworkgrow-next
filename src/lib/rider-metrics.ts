@@ -148,12 +148,22 @@ function getQualifyingRides(
  */
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
+// Trial mode: before an event's official start, pull the window back a
+// week so real rides flowing in early (webhook testing, riders starting
+// ahead of time) are actually visible instead of the empty/countdown
+// state — see the "trial leaderboard" banner on the event page. Once `now`
+// passes the real start date this stops applying on its own, no manual
+// reset needed.
+const TRIAL_LOOKBACK_MS = 7 * ONE_DAY_MS;
+
 // Shared by getEventLeaderboard and getRiderRides, so the leaderboard and
 // its "verify rides" modal always agree on which activities are in-window.
 // `end` is inclusive of the whole end-date day, not just its first
 // millisecond.
 function eventWindowMs(startDate: string, endDate: string): { start: number; end: number } {
-  return { start: new Date(startDate).getTime(), end: new Date(endDate).getTime() + ONE_DAY_MS - 1 };
+  const officialStart = new Date(startDate).getTime();
+  const start = Date.now() < officialStart ? officialStart - TRIAL_LOOKBACK_MS : officialStart;
+  return { start, end: new Date(endDate).getTime() + ONE_DAY_MS - 1 };
 }
 
 export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {

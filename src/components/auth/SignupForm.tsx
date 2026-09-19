@@ -11,7 +11,6 @@ import { auth } from "@/lib/firebase/client";
 import { establishSession } from "@/lib/auth/establish-session";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE } from "@/lib/auth/phone";
 import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
-import GoogleSignInButton from "./GoogleSignInButton";
 import PasswordInput from "./PasswordInput";
 
 export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }) {
@@ -127,8 +126,8 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
         <PasswordInput value={password} onChange={setPassword} minLength={6} required icon="bi-lock" />
 
         <Form.Group className="mb-3">
-          <Form.Label>Address (optional)</Form.Label>
-          <Form.Control value={address} onChange={(e) => setAddress(e.target.value)} />
+          <Form.Label>Address</Form.Label>
+          <Form.Control value={address} onChange={(e) => setAddress(e.target.value)} required />
         </Form.Group>
 
         <div className="row g-3 mb-3">
@@ -177,13 +176,6 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
           {!pending && <i className="bi bi-arrow-right" aria-hidden />}
         </Button>
       </Form>
-
-      <div className="d-flex align-items-center gap-3 text-muted small my-3">
-        <hr className="flex-grow-1 my-0" />
-        or continue with
-        <hr className="flex-grow-1 my-0" />
-      </div>
-      <GoogleSignInButton redirectTo={redirectTo} />
 
       <p className="text-center small mt-4 mb-0">
         Already have an account? <Link href="/login">Log in</Link>
