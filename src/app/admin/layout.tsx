@@ -23,6 +23,7 @@ const ADMIN_NAV: AdminNavSection[] = [
       { href: "/admin/rides/flag", label: "Ride Flagging", icon: "bi-flag" },
       { href: "/admin/rides/rules", label: "Ride Rules Configuration", icon: "bi-sliders" },
       { href: "/admin/strava-subscription", label: "Strava Subscription", icon: "bi-rss" },
+      { href: "/admin/rides/webhook-events", label: "Strava Webhook Events", icon: "bi-list-ul" },
       { href: "/admin/endurance/riders", label: "Endurance Riders", icon: "bi-person-badge" },
       { href: "/admin/endurance/rules", label: "Endurance Rules", icon: "bi-list-check" },
     ],

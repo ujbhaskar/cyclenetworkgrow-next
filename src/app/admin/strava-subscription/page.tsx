@@ -1,17 +1,16 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/auth/dal";
 import { getStravaSubscription } from "@/lib/strava";
 import StravaSubscriptionPanel from "@/components/admin/StravaSubscriptionPanel";
 
-// Deep-links into Cloud Logging / Firestore Console, pre-scoped so "is
-// Strava sending us anything" is one click instead of a gcloud command.
+// Deep-links straight into Cloud Logging, pre-scoped so "is Strava sending
+// us anything" is one click instead of a gcloud command.
 const WEBHOOK_LOGS_URL =
   "https://console.cloud.google.com/logs/query;query=" +
   encodeURIComponent(
     'resource.type="cloud_run_revision"\nresource.labels.service_name="cyclenetworkgrow-next"\ntextPayload:"strava webhook"',
   ) +
   "?project=challenge1177";
-const WEBHOOK_EVENTS_COLLECTION_URL =
-  "https://console.firebase.google.com/project/challenge1177/firestore/databases/-default-/data/~2FstravaWebhookEvents";
 
 export default async function AdminStravaSubscriptionPage() {
   await requireRole("admin");
@@ -42,10 +41,8 @@ export default async function AdminStravaSubscriptionPage() {
           — each event this app actually acted on: ingested, skipped (with why), or errored.
         </li>
         <li>
-          <a href={WEBHOOK_EVENTS_COLLECTION_URL} target="_blank" rel="noopener noreferrer">
-            Raw event log (Firestore: stravaWebhookEvents)
-          </a>{" "}
-          — every event Strava has ever sent this app, unfiltered; sort by <code>receivedAt</code> to see the latest.
+          <Link href="/admin/rides/webhook-events">Raw event log</Link> — every event Strava has ever sent this app,
+          unfiltered, newest first.
         </li>
       </ul>
     </div>
