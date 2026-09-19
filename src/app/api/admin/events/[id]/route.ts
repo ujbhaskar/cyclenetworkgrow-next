@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
-import { deleteEvent, updateEvent } from "@/lib/events";
+import { deleteEvent, getEventAdminDetail, updateEvent } from "@/lib/events";
 import { EVENT_STATUSES } from "@/lib/models/event";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +10,33 @@ type RouteParams = { params: Promise<{ id: string }> };
 /**
  * @swagger
  * /api/admin/events/{id}:
+ *   get:
+ *     summary: One event's full admin detail (for the edit form)
+ *     tags:
+ *       - Admin
+ *     security:
+ *       - sessionCookie: []
+ *     responses:
+ *       200:
+ *         description: Event detail
+ *       404:
+ *         description: Not found
+ */
+export async function GET(_request: Request, { params }: RouteParams) {
+  await requireRole("admin");
+  const { id } = await params;
+  const event = await getEventAdminDetail(id);
+  if (!event) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  return Response.json({ event });
+}
+
+/**
+ * @swagger
+ * /api/admin/events/{id}:
  *   patch:
- *     summary: Update an event's status (or other fields)
+ *     summary: Update an event (any subset of fields, including status)
  *     description: Requires admin role.
  *     tags:
  *       - Admin
@@ -30,7 +55,7 @@ type RouteParams = { params: Promise<{ id: string }> };
  *           schema:
  *             type: object
  *             properties:
- *               status: { type: string, enum: [draft, active, completed, archived] }
+ *               status: { type: string, enum: [NotStarted, Started, Completed, Archived, Hidden] }
  *     responses:
  *       200:
  *         description: Updated

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
-import { getEventBySlug, isEventUpcoming } from "@/lib/events";
+import { getEventBySlug, getPublicEventRiders, isEventUpcoming } from "@/lib/events";
 import { getEventLeaderboard } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
@@ -19,8 +19,7 @@ import { MILESTONES_KM, MILESTONE_QUOTAS } from "@/lib/models/rider-metric";
 // gets its own leaderboard implementation rather than forcing one generic
 // shape onto every event; everything else falls back to a plain distance
 // figure with no event-specific leaderboard.
-const MILESTONE_QUOTA_EVENT_ID = "legacy-EPVUTrG0Vvj6dspIe5Bl";
-const AW80D_FULL_EVENT_ID = `legacy-${AW80D_EVENT_ID}`;
+const MILESTONE_QUOTA_EVENT_ID = "EPVUTrG0Vvj6dspIe5Bl";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -41,9 +40,14 @@ export default async function EventDetailPage({
   }
 
   const isUpcoming = isEventUpcoming(event);
-  const isAw80d = event.id === AW80D_FULL_EVENT_ID;
+  const isAw80d = event.id === AW80D_EVENT_ID;
   const leaderboard = isAw80d ? null : await getEventLeaderboard(event);
   const aw80dLeaderboard = isAw80d ? await getAw80dLeaderboard(event.startDate, event.endDate) : null;
+  // Shown as a fallback in EventLeaderboard while there's no ride data yet
+  // (e.g. registration is open/closed but the event hasn't started) — AW80D
+  // already has its own registered-rider display built into its team
+  // leaderboard, so this is only needed for the generic path.
+  const registeredRiders = isAw80d ? [] : await getPublicEventRiders(event.id);
 
   return (
     <div>
@@ -56,16 +60,16 @@ export default async function EventDetailPage({
       <Container className="py-3" style={{ maxWidth: 1100 }}>
         <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start gap-2 mb-3">
           <h1 className="fw-bold mb-0">{event.name}</h1>
-          <Badge bg="success" className="bg-opacity-10 text-success fs-6 flex-shrink-0">
-            {event.categoryLabel}
-          </Badge>
-        </div>
-
-        <div className="d-flex flex-wrap gap-4 text-muted mb-4">
           <span>
             <i className="bi bi-calendar-event me-1" aria-hidden /> {formatDate(event.startDate)} –{" "}
             {formatDate(event.endDate)}
           </span>
+        </div>
+
+        <div className="d-flex flex-wrap gap-4 text-muted mb-4">
+          <Badge bg="success" className="bg-opacity-10 text-success fs-6 flex-shrink-0">
+            {event.categoryLabel}
+          </Badge>
           <span>
             <i className="bi bi-signpost me-1" aria-hidden /> {event.typeLabel}
           </span>
@@ -132,7 +136,14 @@ export default async function EventDetailPage({
           {aw80dLeaderboard ? (
             <Aw80dLeaderboard data={aw80dLeaderboard} eventStartDate={event.startDate} eventEndDate={event.endDate} />
           ) : (
-            leaderboard && <EventLeaderboard data={leaderboard} />
+            leaderboard && (
+              <EventLeaderboard
+                data={leaderboard}
+                eventStartDate={event.startDate}
+                eventEndDate={event.endDate}
+                registeredRiders={registeredRiders}
+              />
+            )
           )}
         </Container>
       )}

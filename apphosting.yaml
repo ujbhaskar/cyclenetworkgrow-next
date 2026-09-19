@@ -11,6 +11,22 @@ env:
     secret: STRAVA_CLIENT_SECRET
     availability:
       - RUNTIME
+  - variable: RAZORPAY_KEY_ID
+    secret: RAZORPAY_KEY_ID
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_KEY_SECRET
+    secret: RAZORPAY_KEY_SECRET
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_WEBHOOK_SECRET
+    secret: RAZORPAY_WEBHOOK_SECRET
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_SHEETS_CREDENTIALS_JSON
+    secret: GOOGLE_SHEETS_CREDENTIALS_JSON
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more

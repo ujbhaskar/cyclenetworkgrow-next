@@ -4,6 +4,21 @@
 $cng-blue-color: #125ea3;
 $primary: $cng-blue-color;
 
+// The lighter brand green from the Hero's "Grow Together" gradient
+// (docs/design/screenshots/Home-1.png) — deliberately not $success itself,
+// since that variable also drives unrelated "success" semantics elsewhere
+// (status badges, etc.) that shouldn't shift just because the Hero's own
+// button color changes.
+$cng-brand-green: #4caf6d;
+
+// Every button on the site is flat, no rounded corners — set once here so
+// every .btn/.btn-sm/.btn-lg (not just the custom Hero ones below) picks
+// it up automatically, rather than zeroing border-radius on each button
+// class individually.
+$btn-border-radius: 0;
+$btn-border-radius-sm: 0;
+$btn-border-radius-lg: 0;
+
 // Header/body font pair from docs/design/screenshots/Home-1.png — the actual
 // font files load via next/font/google in layout.tsx, which exposes them as
 // these CSS custom properties.
@@ -13,8 +28,32 @@ $headings-font-family: var(--font-heading), Helvetica, Arial, sans-serif;
 // $headings-font-family — override it separately so it also gets Parkinsans.
 $display-font-family: var(--font-heading), Helvetica, Arial, sans-serif;
 
+// FAQ accordion: plus/× icon pair instead of Bootstrap's default chevron,
+// and every question (not just the open one) in bold navy — both collapsed
+// and active text/icon colors sampled directly from the FAQ design
+// reference, since neither matches any color already in this palette.
+$faq-accordion-navy: #1a1f4d;
+$accordion-icon-width: 1rem;
+$accordion-icon-transform: none;
+$accordion-button-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='#{$faq-accordion-navy}' stroke-width='2' stroke-linecap='round'><path d='M8 2v12M2 8h12'/></svg>");
+$accordion-button-active-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='#{$faq-accordion-navy}' stroke-width='2' stroke-linecap='round'><path d='M3 3l10 10M13 3 3 13'/></svg>");
+$accordion-button-color: $faq-accordion-navy;
+$accordion-button-active-color: $faq-accordion-navy;
+// Rows should blend into the section's own cream background instead of
+// sitting in white boxes — only the active row keeps its light-blue tint
+// (still $accordion-button-active-bg's default) to mark which is open.
+$accordion-bg: transparent;
+
 @import "bootstrap/scss/bootstrap";
 @import "bootstrap-icons/font/bootstrap-icons.css";
+
+// Bootstrap's reboot deliberately doesn't inherit font-weight onto
+// <button> (see _reboot.scss's input/button/select/textarea rule), so the
+// accordion-header wrapper's own bold weight never reaches this button —
+// has to be set here directly.
+.accordion-button {
+  font-weight: 500;
+}
 
 html,
 body {
@@ -24,4 +63,36 @@ body {
 body {
   display: flex;
   flex-direction: column;
+}
+
+// Hero's two CTA buttons (docs/design/screenshots/Home-1.png) — a solid
+// brand-green primary action and a green-outlined, white-text secondary
+// one. Neither matches a stock Bootstrap variant closely enough to reuse
+// (btn-success is darker/more forest-toned; btn-outline-light's border
+// is white, not green), so these are their own small utility classes
+// rather than overriding $success app-wide.
+.btn-brand {
+  background-color: $cng-brand-green;
+  border-color: $cng-brand-green;
+  color: #fff;
+
+  &:hover,
+  &:focus {
+    background-color: darken($cng-brand-green, 8%);
+    border-color: darken($cng-brand-green, 8%);
+    color: #fff;
+  }
+}
+
+.btn-outline-brand {
+  background-color: transparent;
+  border: 2px solid $cng-brand-green;
+  color: #fff;
+
+  &:hover,
+  &:focus {
+    background-color: $cng-brand-green;
+    border-color: $cng-brand-green;
+    color: #fff;
+  }
 }

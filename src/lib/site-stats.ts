@@ -11,8 +11,7 @@ import { adminDb } from "@/lib/firebase/admin";
 const RIDES_COLLECTION = "rides";
 const RIDERS_COLLECTION = "riders";
 const ATHLETE_TOKENS_COLLECTION = "athelete_tokens"; // sic — matches the real (misspelled) collection name
-const LEGACY_EVENTS_COLLECTION = "events";
-const NEW_EVENTS_COLLECTION = "cyclingEvents";
+const EVENTS_COLLECTION = "events";
 
 export type SiteStats = {
   riderCount: number;
@@ -83,14 +82,12 @@ function normalizeCity(raw: unknown): string | null {
 }
 
 export async function getSiteStats(): Promise<SiteStats> {
-  const [ridesSnapshot, ridersSnapshot, tokensSnapshot, legacyEventsSnapshot, newEventsSnapshot] =
-    await Promise.all([
-      adminDb.collection(RIDES_COLLECTION).get(),
-      adminDb.collection(RIDERS_COLLECTION).get(),
-      adminDb.collection(ATHLETE_TOKENS_COLLECTION).get(),
-      adminDb.collection(LEGACY_EVENTS_COLLECTION).get(),
-      adminDb.collection(NEW_EVENTS_COLLECTION).get(),
-    ]);
+  const [ridesSnapshot, ridersSnapshot, tokensSnapshot, eventsSnapshot] = await Promise.all([
+    adminDb.collection(RIDES_COLLECTION).get(),
+    adminDb.collection(RIDERS_COLLECTION).get(),
+    adminDb.collection(ATHLETE_TOKENS_COLLECTION).get(),
+    adminDb.collection(EVENTS_COLLECTION).get(),
+  ]);
 
   let totalDistanceM = 0;
   let riderCount = 0;
@@ -130,6 +127,6 @@ export async function getSiteStats(): Promise<SiteStats> {
     // free-text city data always has residual noise it doesn't catch —
     // round down further as a safety margin against overstating this.
     cityCount: roundDownTo(cities.size, 20),
-    eventCount: legacyEventsSnapshot.size + newEventsSnapshot.size,
+    eventCount: eventsSnapshot.size,
   };
 }

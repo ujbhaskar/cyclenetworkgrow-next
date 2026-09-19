@@ -4,9 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Table from "react-bootstrap/Table";
 import { Modal, ModalHeader, ModalTitle, ModalBody, Tab, Tabs } from "react-bootstrap";
 import { MILESTONES_KM, type EventLeaderboardData, type LongestRide, type PlaceStat, type QualifyingRide } from "@/lib/models/rider-metric";
+import type { PublicEventRider } from "@/lib/events";
 import UserAvatar from "@/components/UserAvatar";
 import IndiaStateMap from "./IndiaStateMap";
 import SimpleBarChart from "./SimpleBarChart";
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// Whole days remaining until the event's start date, rounded up so "less
+// than a day left" still reads as 1, not 0. Negative/zero once it's started.
+function daysUntilStart(eventStartDate: string): number {
+  return Math.ceil((new Date(eventStartDate).getTime() - Date.now()) / ONE_DAY_MS);
+}
 
 // Small reusable stat tile for a "longest ride" record (overall, male-only,
 // female-only) — same shape, just a different filtered record and label.
@@ -95,12 +104,23 @@ function PlaceStatList({ title, icon, places }: { title: string; icon: string; p
 // city/state/gender breakdowns, and a state map. No Points column — the
 // legacy scoring formula for it isn't present anywhere in the source data,
 // see docs/REQUIREMENTS.md's open question on event scoring.
-export default function EventLeaderboard({ data }: { data: EventLeaderboardData }) {
+export default function EventLeaderboard({
+  data,
+  eventStartDate,
+  eventEndDate,
+  registeredRiders = [],
+}: {
+  data: EventLeaderboardData;
+  eventStartDate: string;
+  eventEndDate: string;
+  /** Shown as a fallback while there's no ride data yet (e.g. before the
+   * event starts) — registration info, not ride results. */
+  registeredRiders?: PublicEventRider[];
+}) {
   const {
     riders,
     totalQualifiers,
     totalDistanceKm,
-    totalElevationM,
     totalRides,
     finisherCount,
     longestRide,
@@ -113,6 +133,7 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
     genderStats,
   } = data;
   const avgDistancePerRiderKm = totalQualifiers > 0 ? totalDistanceKm / totalQualifiers : 0;
+  const daysToStart = daysUntilStart(eventStartDate);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
   const [rides, setRides] = useState<QualifyingRide[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -146,7 +167,8 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
     setRides(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/rider-rides/${encodeURIComponent(phone)}`);
+      const params = new URLSearchParams({ start: eventStartDate, end: eventEndDate });
+      const res = await fetch(`/api/rider-rides/${encodeURIComponent(phone)}?${params}`);
       const json = await res.json();
       setRides(json.rides ?? []);
     } finally {
@@ -184,7 +206,43 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
         <Tab eventKey="table" title="Leaderboard Table">
           <div className="pt-0">
             {riders.length === 0 ? (
-              <p className="text-muted">No qualifying rides recorded within this event&apos;s dates yet.</p>
+              <div>
+                <p className="text-muted">
+                  {daysToStart > 1
+                    ? `${daysToStart} days to go — the leaderboard opens once the event starts.`
+                    : daysToStart === 1
+                      ? "1 day to go — the leaderboard opens once the event starts."
+                      : daysToStart === 0
+                        ? "The event starts today — check back shortly for the first rides."
+                        : "No qualifying rides recorded within this event's dates yet."}
+                </p>
+                {registeredRiders.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="h6 fw-bold mb-3">Registered Riders ({registeredRiders.length})</h3>
+                    <div className="d-flex flex-wrap gap-3">
+                      {registeredRiders.map((rider, index) => (
+                        <div
+                          key={`${rider.name}-${index}`}
+                          className="d-flex align-items-center gap-2 border rounded p-2"
+                          style={{ width: 240 }}
+                        >
+                          <UserAvatar photoUrl={rider.photoUrl} />
+                          <div>
+                            <div className="text-truncate" style={{ maxWidth: 160 }}>
+                              {rider.name}
+                            </div>
+                            <div className="text-muted" style={{ fontSize: 12 }}>
+                              {[rider.gender, [rider.city, rider.state].filter(Boolean).join(", ")]
+                                .filter(Boolean)
+                                .join(" · ") || "—"}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <Table responsive hover className="align-middle">
@@ -273,12 +331,6 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
                 <div className="text-muted small mt-1">Total KMs</div>
               </div>
               <div>
-                <div className="fs-3 fw-semibold lh-1">
-                  {totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m
-                </div>
-                <div className="text-muted small mt-1">Total Elevation Gain</div>
-              </div>
-              <div>
                 <div className="fs-3 fw-semibold lh-1">{totalRides.toLocaleString()}</div>
                 <div className="text-muted small mt-1">Total Rides Logged</div>
               </div>
@@ -340,7 +392,6 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
                     <th>Date</th>
                     <th>Type</th>
                     <th className="text-end">Distance</th>
-                    <th className="text-end">Elevation</th>
                     <th className="text-center">Bracket</th>
                     <th className="text-center">Strava</th>
                   </tr>
@@ -352,7 +403,6 @@ export default function EventLeaderboard({ data }: { data: EventLeaderboardData 
                       <td className="text-nowrap">{new Date(ride.startDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</td>
                       <td>{ride.type}</td>
                       <td className="text-end">{ride.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</td>
-                      <td className="text-end">{ride.elevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m</td>
                       <td className="text-center">{ride.bracket ? `${ride.bracket}KM` : "–"}</td>
                       <td className="text-center">
                         <a

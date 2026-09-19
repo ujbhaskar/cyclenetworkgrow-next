@@ -141,19 +141,18 @@ function getQualifyingRides(
  * integration in docs/ARCHITECTURE.md §5/§6); fine for a public event page
  * at this app's data volume (~375 riders, ~15k activities total).
  */
-// TEMPORARY: the 1177 6.0 event's real window (Sep 21 - Dec 6 2026) hasn't
-// started yet, so it has zero ride data and the leaderboard would render
-// empty. April-June 2026 is the richest stretch in the real `rides` data
-// (~14,500 qualifying activities, vs. low hundreds elsewhere) — hardcoded
-// here, wide enough for riders to actually clear the 55-ride quota, so the
-// leaderboard has real data (including finishers) to show. Remove this
-// override once the actual event window has ride activity in it.
-const DEMO_WINDOW_START = new Date("2026-04-01T00:00:00Z").getTime();
-const DEMO_WINDOW_END = new Date("2026-06-30T23:59:59Z").getTime();
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// Shared by getEventLeaderboard and getRiderRides, so the leaderboard and
+// its "verify rides" modal always agree on which activities are in-window.
+// `end` is inclusive of the whole end-date day, not just its first
+// millisecond.
+function eventWindowMs(startDate: string, endDate: string): { start: number; end: number } {
+  return { start: new Date(startDate).getTime(), end: new Date(endDate).getTime() + ONE_DAY_MS - 1 };
+}
 
 export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
-  const start = DEMO_WINDOW_START;
-  const end = DEMO_WINDOW_END;
+  const { start, end } = eventWindowMs(event.startDate, event.endDate);
 
   const [ridesSnapshot, ridersSnapshot, tokensSnapshot] = await Promise.all([
     adminDb.collection(RIDES_COLLECTION).get(),
@@ -235,13 +234,11 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     // total qualifying ride count.
     const milestoneCounts: Record<MilestoneKm, number> = { 25: 0, 50: 0, 75: 0, 100: 0, 150: 0 };
     let totalDistanceKm = 0;
-    let totalElevationM = 0;
     rides.forEach((ride) => {
       if (ride.bracket !== null) {
         milestoneCounts[ride.bracket] += 1;
       }
       totalDistanceKm += ride.distanceKm;
-      totalElevationM += ride.elevationM;
 
       if (!longestRide || ride.distanceKm > longestRide.distanceKm) {
         longestRide = {
@@ -317,7 +314,6 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       milestoneAchieved,
       totalRides: rides.length,
       totalDistanceKm,
-      totalElevationM,
       isFinisher,
       progressPercent: event.targetDistanceKm
         ? Math.min(100, (totalDistanceKm / event.targetDistanceKm) * 100)
@@ -342,7 +338,6 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     riders: metrics.slice(0, limit),
     totalQualifiers: metrics.length,
     totalDistanceKm: metrics.reduce((sum, m) => sum + m.totalDistanceKm, 0),
-    totalElevationM: metrics.reduce((sum, m) => sum + m.totalElevationM, 0),
     totalRides: metrics.reduce((sum, m) => sum + m.totalRides, 0),
     finisherCount: metrics.filter((m) => m.isFinisher).length,
     longestRide,
@@ -362,14 +357,15 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
  * The individual qualifying rides behind one rider's leaderboard row —
  * powers the "verify" modal so anyone can see exactly which Strava-synced
  * activities produced that rider's milestone counts and total distance.
- * Uses the same DEMO_WINDOW / qualifying-ride criteria as getEventLeaderboard.
+ * Uses the same event window / qualifying-ride criteria as getEventLeaderboard.
  */
-export async function getRiderRides(phone: string): Promise<QualifyingRide[]> {
+export async function getRiderRides(phone: string, eventStartDate: string, eventEndDate: string): Promise<QualifyingRide[]> {
+  const { start, end } = eventWindowMs(eventStartDate, eventEndDate);
   const doc = await adminDb.collection(RIDES_COLLECTION).doc(phone).get();
   if (!doc.exists) {
     return [];
   }
   const activities = doc.data() as Record<string, LegacyActivity>;
-  const rides = getQualifyingRides(activities, DEMO_WINDOW_START, DEMO_WINDOW_END);
+  const rides = getQualifyingRides(activities, start, end);
   return rides.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 }

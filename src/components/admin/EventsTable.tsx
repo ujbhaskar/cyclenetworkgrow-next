@@ -1,17 +1,41 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
+import Badge from "react-bootstrap/Badge";
 import Alert from "react-bootstrap/Alert";
-import { EVENT_STATUSES, type CyclingEvent, type EventStatus } from "@/lib/models/event";
-import CreateEventModal from "./CreateEventModal";
+import { EVENT_STATUSES, type EventStatus } from "@/lib/models/event";
+import type { EventAdminSummary } from "@/lib/events";
+import EventFormModal from "./EventFormModal";
 
-export default function EventsTable({ initialEvents }: { initialEvents: CyclingEvent[] }) {
+export default function EventsTable({ initialEvents }: { initialEvents: EventAdminSummary[] }) {
   const [events, setEvents] = useState(initialEvents);
   const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  const [formEventId, setFormEventId] = useState<string | null | "new">(null);
+  const [formInitialEvent, setFormInitialEvent] = useState<Record<string, unknown> | null>(null);
+  const [editLoadingId, setEditLoadingId] = useState<string | null>(null);
+
+  function openCreateForm() {
+    setFormInitialEvent(null);
+    setFormEventId("new");
+  }
+
+  async function openEditForm(id: string) {
+    setError(null);
+    setEditLoadingId(id);
+    const res = await fetch(`/api/admin/events/${id}`);
+    setEditLoadingId(null);
+    if (!res.ok) {
+      setError("Couldn't load that event.");
+      return;
+    }
+    const body = await res.json();
+    setFormInitialEvent(body.event ?? null);
+    setFormEventId(id);
+  }
 
   async function refetch() {
     const res = await fetch("/api/admin/events");
@@ -53,7 +77,7 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h1 className="h3 mb-0">Events</h1>
-        <Button onClick={() => setShowCreate(true)}>Add event</Button>
+        <Button onClick={openCreateForm}>Add event</Button>
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
@@ -64,7 +88,9 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
             <th>Name</th>
             <th>Category</th>
             <th>Dates</th>
-            <th>Location</th>
+            <th>Type</th>
+            <th className="text-center">Riders</th>
+            <th className="text-center">Published</th>
             <th>Status</th>
             <th />
           </tr>
@@ -73,19 +99,30 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
           {events.map((event) => (
             <tr key={event.id}>
               <td>{event.name}</td>
-              <td>{event.category}</td>
+              <td>{event.categoryLabel}</td>
               <td>
-                {new Date(event.startDate).toLocaleDateString()} –{" "}
-                {new Date(event.endDate).toLocaleDateString()}
+                {event.startDate ? new Date(event.startDate).toLocaleDateString() : "—"} –{" "}
+                {event.endDate ? new Date(event.endDate).toLocaleDateString() : "—"}
               </td>
-              <td>{event.location}</td>
+              <td>{event.eventType ?? "—"}</td>
+              <td className="text-center">{event.riderCount}</td>
+              <td className="text-center">
+                {event.publish ? (
+                  <Badge bg="success" className="bg-opacity-10 text-success">
+                    Yes
+                  </Badge>
+                ) : (
+                  <span className="text-muted">—</span>
+                )}
+              </td>
               <td>
                 <Form.Select
                   size="sm"
-                  value={event.status}
+                  value={event.status ?? ""}
                   onChange={(e) => handleStatusChange(event.id, e.target.value as EventStatus)}
-                  style={{ width: 130 }}
+                  style={{ width: 140 }}
                 >
+                  <option value="">—</option>
                   {EVENT_STATUSES.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -93,7 +130,21 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
                   ))}
                 </Form.Select>
               </td>
-              <td>
+              <td className="text-nowrap">
+                <Button
+                  size="sm"
+                  variant="outline-secondary"
+                  className="me-2"
+                  onClick={() => openEditForm(event.id)}
+                  disabled={editLoadingId === event.id}
+                >
+                  {editLoadingId === event.id ? "Loading…" : "Edit"}
+                </Button>
+                {event.hasRegistrationSheet && (
+                  <Link href={`/admin/events/${event.id}/registrations`} className="btn btn-sm btn-outline-primary me-2">
+                    Registrations
+                  </Link>
+                )}
                 <Button size="sm" variant="outline-danger" onClick={() => handleDelete(event.id)}>
                   Delete
                 </Button>
@@ -102,7 +153,7 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
           ))}
           {events.length === 0 && (
             <tr>
-              <td colSpan={6} className="text-muted text-center py-4">
+              <td colSpan={8} className="text-muted text-center py-4">
                 No events yet.
               </td>
             </tr>
@@ -110,7 +161,14 @@ export default function EventsTable({ initialEvents }: { initialEvents: CyclingE
         </tbody>
       </Table>
 
-      <CreateEventModal show={showCreate} onClose={() => setShowCreate(false)} onCreated={refetch} />
+      <EventFormModal
+        key={formEventId ?? "closed"}
+        show={formEventId !== null}
+        eventId={formEventId === "new" ? null : formEventId}
+        initialEvent={formEventId === "new" ? null : formInitialEvent}
+        onClose={() => setFormEventId(null)}
+        onSaved={refetch}
+      />
     </div>
   );
 }

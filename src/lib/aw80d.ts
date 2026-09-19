@@ -2,7 +2,7 @@ import "server-only";
 import { decompress, type Compressed } from "compress-json";
 import { adminDb } from "@/lib/firebase/admin";
 import { decodeLegacyStorageUrl } from "@/lib/events";
-import type { Aw80dLeaderboardData, Aw80dMedal, Aw80dRider, Aw80dTeam } from "@/lib/models/aw80d";
+import type { Aw80dLeaderboardData, Aw80dMedal, Aw80dRider, Aw80dTeam, Aw80dVerificationRide } from "@/lib/models/aw80d";
 import type { QualifyingRide } from "@/lib/models/rider-metric";
 import aw80d2026Compressed from "@/lib/data/aw80d-2026-results.json";
 
@@ -19,7 +19,10 @@ const TEAM_GOAL_KM = 40075; // rules §6a
 const FINISHER_TARGET_KM = 1500; // rules §6c.i
 const TOP_N_RIDERS_FOR_TEAM = 20; // rules §6b
 const MAX_INDOOR_KM_PER_DAY = 100; // rules §7c
-const MAX_ELAPSED_TO_MOVING_RATIO = 3; // rules §7d
+// rules §7d — kept for reference but NOT currently enforced (isQualifyingActivity
+// and individualExclusionReason both skip this check pending a decision on
+// how strictly to apply it against real rider data).
+const MAX_ELAPSED_TO_MOVING_RATIO = 3;
 const ELEVATION_METERS_PER_POINT = 2.5; // rules §9b
 const ELEVATION_POINTS_CAP_RATIO = 1.75; // rules §9b/9c
 const GOLD_POINTS = 7500; // rules §6c.ii
@@ -123,10 +126,11 @@ function toQualifyingRide(activityId: string, activity: LegacyAw80dActivity, dis
   };
 }
 
-// Rules §6h/6i, §7a/d/e/h/j — a ride counts at all only if: at least
-// 20km, within the event window, not flagged, not from an accepted tag,
-// and its elapsed time isn't more than 3x its moving time (a rough proxy
-// for "mostly stopped, not actually riding" per §7d). Cross-device overlap
+// Rules §6h/6i, §7a/e/h/j — a ride counts at all only if: at least 20km,
+// within the event window, not flagged, not from an accepted tag.
+// §7d (elapsed time can't exceed 3x moving time) is a real rule too, but
+// its enforcement is on hold pending a decision — see
+// MAX_ELAPSED_TO_MOVING_RATIO's definition above. Cross-device overlap
 // dedup (§7f) is a separate pass, applied after this filter — see
 // dedupeOverlappingRides below.
 function isQualifyingActivity(activity: LegacyAw80dActivity, start: number, end: number): boolean {
@@ -137,9 +141,6 @@ function isQualifyingActivity(activity: LegacyAw80dActivity, start: number, end:
   if (Number.isNaN(rideTime) || rideTime < start || rideTime > end) return false;
   const distanceKm = toNumber(activity.distance) / 1000;
   if (distanceKm < MIN_RIDE_KM) return false;
-  const elapsed = toNumber(activity.elapsed_time);
-  const moving = toNumber(activity.moving_time);
-  if (moving > 0 && elapsed > moving * MAX_ELAPSED_TO_MOVING_RATIO) return false;
   return true;
 }
 
@@ -212,6 +213,87 @@ function getQualifyingRides(
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
   return { rides, isIndoorByActivityId };
+}
+
+// Per-ride point value shown in the "verify rides" view — same §9 formula
+// as computeRiderTotals's per-ride elevation cap, just not summed/day-capped
+// since this is an informational per-ride figure, not the rider's total.
+function ridePoints(distanceKm: number, elevationM: number): number {
+  const elevationPoints = Math.min(elevationM / ELEVATION_METERS_PER_POINT, distanceKm * ELEVATION_POINTS_CAP_RATIO);
+  return distanceKm + elevationPoints;
+}
+
+// Same disqualifying checks as isQualifyingActivity, but returns *why*
+// instead of a bare boolean, and never looks at the event window (that's
+// applied earlier, before this is called) — used to annotate every synced
+// ride for the verify-rides audit view, not just to drop the failing ones.
+// §7d (elapsed/moving ratio) is intentionally not checked here — see
+// MAX_ELAPSED_TO_MOVING_RATIO's definition above.
+function individualExclusionReason(activity: LegacyAw80dActivity): string | null {
+  if (activity.flagged) return "Flagged for review (§7i)";
+  if (activity.from_accepted_tag) return "Tagged ride — not counted (§7h)";
+  const distanceKm = toNumber(activity.distance) / 1000;
+  if (distanceKm < MIN_RIDE_KM) return `Below the ${MIN_RIDE_KM}km minimum (§7e)`;
+  return null;
+}
+
+// Every ride the rider synced within the event window (type Ride/
+// VirtualRide only), each annotated with whether it counted and why not —
+// unlike getQualifyingRides, nothing is dropped, so this is what backs the
+// "verify rides" modal rather than the leaderboard totals.
+function getVerificationRides(
+  activities: LegacyAw80dActivity[],
+  start: number,
+  end: number,
+): Aw80dVerificationRide[] {
+  type Candidate = RideWindow & { activity: LegacyAw80dActivity; reason: string | null };
+  const candidates: Candidate[] = [];
+
+  activities.forEach((activity) => {
+    if (activity.id === undefined) return;
+    if (activity.type !== "Ride" && activity.type !== "VirtualRide") return;
+    const rideTime = activity.start_date ? new Date(activity.start_date).getTime() : NaN;
+    if (Number.isNaN(rideTime) || rideTime < start || rideTime > end) return;
+
+    const activityId = String(activity.id);
+    const distanceKm = toNumber(activity.distance) / 1000;
+    const elapsedSeconds = toNumber(activity.elapsed_time);
+    candidates.push({
+      activityId,
+      activity,
+      distanceKm,
+      startMs: rideTime,
+      endMs: rideTime + elapsedSeconds * 1000,
+      reason: individualExclusionReason(activity),
+    });
+  });
+
+  // §7f overlap dedup only applies among rides that otherwise qualify — the
+  // loser is annotated here instead of dropped, so the audit view stays
+  // complete.
+  const eligible = candidates.filter((c) => c.reason === null);
+  const kept = new Set(dedupeOverlappingRides(eligible).map((c) => c.activityId));
+  candidates.forEach((c) => {
+    if (c.reason === null && !kept.has(c.activityId)) {
+      c.reason = "Overlaps with a longer ride from another device (§7f)";
+    }
+  });
+
+  return candidates
+    .map(({ activityId, activity, distanceKm, reason }) => {
+      const elevationM = toNumber(activity.total_elevation_gain);
+      return {
+        activityId,
+        distanceKm,
+        elevationM,
+        type: activity.type ?? "Ride",
+        startDate: activity.start_date ?? "",
+        points: ridePoints(distanceKm, elevationM),
+        counted: reason === null,
+        exclusionReason: reason,
+      };
+    })
+    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 }
 
 function medalFor(totalPoints: number, isFinisher: boolean): Aw80dMedal {
@@ -332,21 +414,29 @@ export async function getAw80dLeaderboard(startDate: string, endDate: string): P
     .filter((team) => team.teamId !== undefined)
     .map((team) => {
       const id = String(team.teamId);
-      const members = (teamMembers.get(id) ?? []).slice().sort((a, b) => b.totalDistanceKm - a.totalDistanceKm);
+      // §9: teams (like riders) rank by points, so the "top 20" counted
+      // toward both the team's distance goal and its points total is the
+      // top 20 BY POINTS, not by raw distance.
+      const members = (teamMembers.get(id) ?? []).slice().sort((a, b) => b.totalPoints - a.totalPoints);
       const topMembers = members.slice(0, TOP_N_RIDERS_FOR_TEAM);
       const qualifyingDistanceKm = topMembers.reduce((sum, r) => sum + r.totalDistanceKm, 0);
+      const qualifyingPoints = topMembers.reduce((sum, r) => sum + r.totalPoints, 0);
       const totalDistanceKm = members.reduce((sum, r) => sum + r.totalDistanceKm, 0);
+      const qualifierCount = members.filter((r) => r.isFinisher).length;
       return {
         teamId: id,
         teamName: teamNameById.get(id) ?? `Team ${id}`,
         logoUrl: teamLogoById.get(id) ?? null,
         memberCount: members.length,
         qualifyingDistanceKm,
+        qualifyingPoints,
         totalDistanceKm,
         qualifies: qualifyingDistanceKm >= TEAM_GOAL_KM,
+        qualifierCount,
       };
     })
-    .sort((a, b) => b.qualifyingDistanceKm - a.qualifyingDistanceKm);
+    // §9e: ties in points fall back to kilometers covered.
+    .sort((a, b) => b.qualifyingPoints - a.qualifyingPoints || b.qualifyingDistanceKm - a.qualifyingDistanceKm);
 
   const byDistance = [...riders].sort((a, b) => b.totalDistanceKm - a.totalDistanceKm);
   const byElevation = [...riders].sort((a, b) => b.totalElevationM - a.totalElevationM);
@@ -359,6 +449,9 @@ export async function getAw80dLeaderboard(startDate: string, endDate: string): P
     topMaleByElevation: byElevation.filter((r) => r.gender === "Male").slice(0, 10),
     topFemaleByElevation: byElevation.filter((r) => r.gender === "Female").slice(0, 5),
     finisherCount: riders.filter((r) => r.isFinisher).length,
+    goldCount: riders.filter((r) => r.medal === "gold").length,
+    silverCount: riders.filter((r) => r.medal === "silver").length,
+    bronzeCount: riders.filter((r) => r.medal === "bronze").length,
     totalDistanceKm: riders.reduce((sum, r) => sum + r.totalDistanceKm, 0),
     totalElevationM: riders.reduce((sum, r) => sum + r.totalElevationM, 0),
     teamGoalKm: TEAM_GOAL_KM,
@@ -366,9 +459,9 @@ export async function getAw80dLeaderboard(startDate: string, endDate: string): P
   };
 }
 
-export async function getAw80dRiderRides(phone: string, startDate: string, endDate: string): Promise<QualifyingRide[]> {
+export async function getAw80dRiderRides(phone: string, startDate: string, endDate: string): Promise<Aw80dVerificationRide[]> {
   const { start, end } = eventWindowBounds(startDate, endDate);
   const activities = getResultsData()[phone] ?? [];
 
-  return getQualifyingRides(activities, start, end).rides;
+  return getVerificationRides(activities, start, end);
 }

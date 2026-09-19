@@ -43,7 +43,6 @@ export type RiderMetric = {
   milestoneAchieved: Record<MilestoneKm, boolean>;
   totalRides: number;
   totalDistanceKm: number;
-  totalElevationM: number;
   isFinisher: boolean;
   progressPercent: number | null;
 };
@@ -71,7 +70,6 @@ export type EventLeaderboardData = {
   riders: RiderMetric[];
   totalQualifiers: number;
   totalDistanceKm: number;
-  totalElevationM: number;
   totalRides: number;
   finisherCount: number;
   longestRide: LongestRide | null;

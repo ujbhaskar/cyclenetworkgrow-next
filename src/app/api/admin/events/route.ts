@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/dal";
-import { createEvent, listAllEvents } from "@/lib/events";
+import { createEvent, listAllEventsForAdmin } from "@/lib/events";
 import { adminDb } from "@/lib/firebase/admin";
-import { EVENT_DIFFICULTIES, EVENT_STATUSES } from "@/lib/models/event";
+import { EVENT_CATEGORIES, EVENT_STATUSES, EVENT_TYPES, type EventInput } from "@/lib/models/event";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   await requireRole("admin");
-  const events = await listAllEvents();
+  const events = await listAllEventsForAdmin();
   return Response.json({ events });
 }
 
@@ -30,66 +30,58 @@ export async function GET() {
  * /api/admin/events:
  *   post:
  *     summary: Create an event
- *     description: Requires admin role.
+ *     description: Requires admin role. Same core schema the legacy Angular admin's add-event form uses.
  *     tags:
  *       - Admin
  *     security:
  *       - sessionCookie: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [name, category, startDate, endDate, location, distanceKm, difficulty, status]
- *             properties:
- *               name: { type: string }
- *               description: { type: string }
- *               category: { type: string }
- *               startDate: { type: string }
- *               endDate: { type: string }
- *               location: { type: string }
- *               distanceKm: { type: number }
- *               difficulty: { type: string, enum: [Beginner, Intermediate, Advanced] }
- *               status: { type: string, enum: [draft, active, completed, archived] }
  *     responses:
  *       200:
- *         description: Created event
+ *         description: "{ id: string }"
  *       400:
  *         description: Invalid fields
  */
 export async function POST(request: Request) {
   const session = await requireRole("admin");
-  const body = await request.json();
-  const { name, description, category, startDate, endDate, location, distanceKm, difficulty, status } = body;
+  const body = await request.json().catch(() => null);
 
-  if (typeof name !== "string" || !name.trim()) {
+  if (typeof body?.name !== "string" || !body.name.trim()) {
     return Response.json({ error: "name is required" }, { status: 400 });
   }
-  if (!startDate || !endDate) {
+  if (!body.startDate || !body.endDate) {
     return Response.json({ error: "startDate and endDate are required" }, { status: 400 });
   }
-  if (!EVENT_DIFFICULTIES.includes(difficulty)) {
-    return Response.json({ error: `difficulty must be one of: ${EVENT_DIFFICULTIES.join(", ")}` }, { status: 400 });
+  if (!EVENT_CATEGORIES.includes(body.category)) {
+    return Response.json({ error: `category must be one of: ${EVENT_CATEGORIES.join(", ")}` }, { status: 400 });
   }
-  if (!EVENT_STATUSES.includes(status)) {
+  if (!EVENT_STATUSES.includes(body.status)) {
     return Response.json({ error: `status must be one of: ${EVENT_STATUSES.join(", ")}` }, { status: 400 });
   }
+  if (!EVENT_TYPES.includes(body.eventType)) {
+    return Response.json({ error: `eventType must be one of: ${EVENT_TYPES.join(", ")}` }, { status: 400 });
+  }
 
-  const event = await createEvent(
-    {
-      name: name.trim(),
-      description: typeof description === "string" ? description : "",
-      category: typeof category === "string" ? category : "Road",
-      startDate,
-      endDate,
-      location: typeof location === "string" ? location : "",
-      distanceKm: Number(distanceKm) || 0,
-      difficulty,
-      status,
-    },
-    session.uid
-  );
+  const input: EventInput = {
+    name: body.name.trim(),
+    description: typeof body.description === "string" ? body.description : "",
+    image: typeof body.image === "string" ? body.image : "",
+    startDate: body.startDate,
+    endDate: body.endDate,
+    registrationStartDate: typeof body.registrationStartDate === "string" ? body.registrationStartDate : "",
+    registrationEndDate: typeof body.registrationEndDate === "string" ? body.registrationEndDate : "",
+    path: typeof body.path === "string" ? body.path : "",
+    category: body.category,
+    publish: Boolean(body.publish),
+    rules: typeof body.rules === "string" ? body.rules : "",
+    payment_link: typeof body.payment_link === "string" ? body.payment_link : "",
+    distance: typeof body.distance === "string" ? body.distance : "",
+    minDistance: typeof body.minDistance === "string" ? body.minDistance : "",
+    metrics: typeof body.metrics === "string" ? body.metrics : "",
+    eventType: body.eventType,
+    status: body.status,
+  };
+
+  const event = await createEvent(input);
 
   await adminDb.collection("auditLog").add({
     actorUid: session.uid,
@@ -98,5 +90,5 @@ export async function POST(request: Request) {
     timestamp: new Date().toISOString(),
   });
 
-  return Response.json({ event });
+  return Response.json(event);
 }

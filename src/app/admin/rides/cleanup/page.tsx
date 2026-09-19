@@ -1,10 +1,19 @@
-import PlaceholderPage from "@/components/PlaceholderPage";
+import { requireRole } from "@/lib/auth/dal";
+import { listRideSummaries } from "@/lib/admin-rides";
+import RidesCleanupPanel from "@/components/admin/RidesCleanupPanel";
 
-export default function AdminRideCleanupPage() {
+export default async function AdminRideCleanupPage() {
+  await requireRole("admin");
+  const riders = await listRideSummaries();
+
   return (
-    <PlaceholderPage
-      title="Ride Cleanup"
-      description="Bulk view/delete a rider's synced ride data — see docs/ARCHITECTURE.md §7.1."
-    />
+    <div>
+      <h1 className="h3 mb-1">Ride Cleanup</h1>
+      <p className="text-muted mb-4">
+        {riders.length} rider{riders.length === 1 ? "" : "s"} with synced rides in the live <code>rides</code>{" "}
+        collection.
+      </p>
+      <RidesCleanupPanel initialRiders={riders} />
+    </div>
   );
 }

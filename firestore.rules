@@ -129,8 +129,8 @@ service cloud.firestore {
     }
 
     match /siteSettings/{docId} {
-      allow read: if true; // Public site config (e.g. home hero banner) — not sensitive.
-      allow write: if false; // Admin SDK only, via /api/admin/hero-banner.
+      allow read: if true; // Public site config (e.g. home hero/ready-to-ride banners) — not sensitive.
+      allow write: if false; // Admin SDK only, via /api/admin/hero-banner and /api/admin/ready-to-ride-banner.
     }
   }
 }

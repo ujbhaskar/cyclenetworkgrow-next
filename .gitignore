@@ -51,3 +51,6 @@ ui-debug.log
 *firebase-admin*.json
 credentials.json
 
+# real rider registration exports (PII) — never committed
+/registrations/
+

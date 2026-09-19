@@ -3,7 +3,15 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function HeroBannerUploadForm({ currentUrl }: { currentUrl: string }) {
+export default function BannerUploadForm({
+  currentUrl,
+  uploadEndpoint,
+  submitLabel = "Upload & Use as Banner",
+}: {
+  currentUrl: string;
+  uploadEndpoint: string;
+  submitLabel?: string;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [previewUrl, setPreviewUrl] = useState(currentUrl);
@@ -30,7 +38,7 @@ export default function HeroBannerUploadForm({ currentUrl }: { currentUrl: strin
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/admin/hero-banner", { method: "POST", body: formData });
+      const res = await fetch(uploadEndpoint, { method: "POST", body: formData });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? "Upload failed");
@@ -49,7 +57,7 @@ export default function HeroBannerUploadForm({ currentUrl }: { currentUrl: strin
         className="rounded mb-3"
         style={{
           height: 220,
-          backgroundImage: `url('${previewUrl}')`,
+          backgroundImage: previewUrl ? `url('${previewUrl}')` : undefined,
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
@@ -66,7 +74,7 @@ export default function HeroBannerUploadForm({ currentUrl }: { currentUrl: strin
           onChange={onFileChange}
         />
         <button type="submit" className="btn btn-success" disabled={uploading}>
-          {uploading ? "Uploading…" : "Upload & Use as Banner"}
+          {uploading ? "Uploading…" : submitLabel}
         </button>
       </div>
       <p className="text-muted small mt-2 mb-0">JPEG, PNG, or WebP — up to 5MB.</p>

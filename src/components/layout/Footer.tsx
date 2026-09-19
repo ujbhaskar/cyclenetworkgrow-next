@@ -25,11 +25,11 @@ export default function Footer() {
         <Row className="gy-4">
           <Col lg={5}>
             <Image
-              src="/logo.png"
+              src="/logo_white.png"
               alt="Cycle Network Grow"
               width={160}
               height={48}
-              style={{ height: 40, width: "auto", filter: "brightness(0) invert(1)" }}
+              style={{ height: 50, width: "auto" }}
             />
             <p className="text-light opacity-75 mt-3" style={{ maxWidth: 380 }}>
               India&apos;s growing cycling community — join events, track your rides, and connect

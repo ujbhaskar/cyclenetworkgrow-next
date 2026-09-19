@@ -11,6 +11,7 @@ const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-body" });
 export const metadata: Metadata = {
   title: "Cycle Network Grow",
   description: "Join cycling events, connect Strava, and climb the leaderboard.",
+  icons: { icon: "/favicon.ico" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

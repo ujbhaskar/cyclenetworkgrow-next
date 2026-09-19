@@ -14,7 +14,7 @@ export default async function Testimonials() {
   }
 
   return (
-    <section className="py-5" style={{ backgroundColor: "#fdfdf5" }}>
+    <section className="py-5" style={{ backgroundColor: "#fafff1" }}>
       <Container style={{ maxWidth: 700 }}>
         <h2 className="fw-bold mb-4 text-center">
           What Our <span className="text-success">Riders</span> Say

@@ -44,10 +44,10 @@ export default async function Hero() {
             lifelong connections.
           </p>
           <div className="d-flex gap-3">
-            <Link href="/signup" className="btn btn-success btn-lg">
+            <Link href="/signup" className="btn btn-brand btn-lg">
               Join Now
             </Link>
-            <Link href="/events" className="btn btn-outline-light btn-lg">
+            <Link href="/events" className="btn btn-outline-brand btn-lg">
               Explore Events
             </Link>
           </div>
@@ -61,8 +61,8 @@ export default async function Hero() {
       </Container>
 
       {/* Torn-paper edge into the next section, per docs/design/screenshots/Home-1.png.
-          Fill matches UpcomingEvents' own background (#fdfdf5). */}
-      <TornPaperEdge fill="#fdfdf5" />
+          Fill matches UpcomingEvents' own background (#fafff1). */}
+      <TornPaperEdge fill="#fafff1" />
     </section>
   );
 }

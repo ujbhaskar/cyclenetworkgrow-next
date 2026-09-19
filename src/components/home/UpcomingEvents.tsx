@@ -9,11 +9,14 @@ export default async function UpcomingEvents() {
   const events = await getUpcomingEvents(3);
 
   return (
-    <section className="py-3" style={{ backgroundColor: "#fdfdf5" }}>
+    <section className="py-3" style={{ backgroundColor: "#fafff1" }}>
       <Container className="pb-5">
         <div className="d-flex justify-content-between align-items-center mb-4">
-          <h2 className="fw-bold mb-0">Upcoming Events</h2>
-          <Link href="/events" className="text-decoration-none">
+          <div className="d-flex align-items-center gap-3 flex-grow-1">
+            <h1 className="mb-0 text-nowrap">Upcoming Events</h1>
+            <hr className="flex-grow-1 my-0 opacity-50" style={{ borderTop: "2px solid currentColor" }} />
+          </div>
+          <Link href="/events" className="text-decoration-none text-nowrap ms-3">
             View all <i className="bi bi-arrow-right" aria-hidden />
           </Link>
         </div>
@@ -21,7 +24,7 @@ export default async function UpcomingEvents() {
         {events.length === 0 ? (
           <p className="text-muted">No upcoming events right now — check back soon!</p>
         ) : (
-          <Row className="g-4">
+          <Row className="g-4 mb-5">
             {events.map((event) => (
               <Col md={4} key={event.id}>
                 <EventCardView event={event} />

@@ -62,6 +62,72 @@ use, keyed by the legacy bare-digit phone format.
   may replace whatever's already registered for production `letscng.com` rather than
   adding alongside it.
 
+## Razorpay (registration payment sync)
+
+Replaces the old portal's flow (Razorpay export → pasted into a Google Sheet → admin
+clicks "Sync users from registrations", which reads that sheet via the Sheets API) with
+a webhook straight from Razorpay — see `src/lib/razorpay.ts` and
+`src/app/api/webhooks/razorpay/route.ts`. **Stage 1 only** (verifies the signature and
+records the raw event to the `razorpayWebhookEvents` collection) — turning a captured
+payment into a rider on the right event isn't built yet; that needs a real
+`payment.captured` event's actual shape first (Razorpay's docs don't fully specify where
+a Payment Page's custom fields — full name/gender/city/state — land in the payload).
+
+- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — not used by stage 1 yet, but needed for the
+  Orders/Payments API lookup stage 2 will add. Both stored as App Hosting secrets (not
+  split public/secret like Strava's CLIENT_ID) since it's not yet confirmed KEY_ID needs
+  to be client-exposed here.
+- `RAZORPAY_WEBHOOK_SECRET` — configured in the Razorpay dashboard (Settings → Webhooks)
+  when creating the webhook; used to verify `x-razorpay-signature`.
+- Set each with:
+  ```bash
+  firebase apphosting:secrets:set RAZORPAY_KEY_ID --project challenge1177 --force
+  firebase apphosting:secrets:set RAZORPAY_KEY_SECRET --project challenge1177 --force
+  firebase apphosting:secrets:set RAZORPAY_WEBHOOK_SECRET --project challenge1177 --force
+  firebase apphosting:secrets:grantaccess RAZORPAY_KEY_ID \
+    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+  firebase apphosting:secrets:grantaccess RAZORPAY_KEY_SECRET \
+    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+  firebase apphosting:secrets:grantaccess RAZORPAY_WEBHOOK_SECRET \
+    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+  ```
+- In the Razorpay dashboard: Settings → Webhooks → Add New Webhook, URL
+  `https://cyclenetworkgrow-next--challenge1177.us-east4.hosted.app/api/webhooks/razorpay`,
+  select at least `payment.captured`, and set the same secret used above. Razorpay's
+  "Send Test Webhook" button there can be used to confirm the endpoint responds `200`,
+  though a synthetic test event won't include a real Payment Page's actual custom-field
+  notes — check a real captured payment's logged document in `razorpayWebhookEvents` for
+  that.
+
+## Google Sheets (legacy event registration sync)
+
+Decided against the Razorpay-webhook approach above for now — reverted to matching the
+legacy Angular admin's existing workflow instead: admin pastes each event's Razorpay
+Payment Page export into a tab of a shared Google Sheet, then triggers a sync from
+`/admin/legacy-events/<id>` (see `src/lib/googleSheets.ts`,
+`src/lib/legacy-registrations.ts`). The Razorpay webhook code above is left in place
+(stage 1 only, unused by this flow) in case direct integration is revisited later.
+
+- `GOOGLE_SHEETS_CREDENTIALS_JSON` — the full service-account key JSON, one line. Reuses
+  the **same** service account the legacy backend already uses
+  (`cng-google-sheet@challenge1177.iam.gserviceaccount.com`,
+  `letscng-api/functions/credentials.json`), which is already granted read access to the
+  shared registrations spreadsheet — no new Google Cloud/sharing setup needed, just copy
+  the existing key into Secret Manager:
+  ```bash
+  jq -c . ../letscng-api/functions/credentials.json \
+    | firebase apphosting:secrets:set GOOGLE_SHEETS_CREDENTIALS_JSON --project challenge1177 --force --data-file -
+  firebase apphosting:secrets:grantaccess GOOGLE_SHEETS_CREDENTIALS_JSON \
+    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+  ```
+- The spreadsheet id is hardcoded in `src/lib/googleSheets.ts` (same one the legacy admin
+  panel reads) — one tab per event edition, tab name = that event's
+  `registeredGoogleDataXLS` field on its `events/{id}` doc.
+- **This is the one deliberate exception to `src/lib/events.ts`'s "never write to the
+  legacy `events` collection" rule** — the sync REPLACES an event's whole `riders` map
+  (matching the legacy admin's exact behavior), not a merge. See the comments on
+  `LEGACY_COLLECTION` and `syncEventRegistrationsFromSheet` before changing either.
+
 ## Supporting config (committed)
 
 - `apphosting.yaml` — runtime config (memory, CPU, instance scaling) for the backend.

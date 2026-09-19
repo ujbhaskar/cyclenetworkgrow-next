@@ -11,7 +11,7 @@ export default async function EventsListPage() {
     <Container className="py-3">
       <h1 className="fw-bold mb-4">Events</h1>
 
-      <h2 className="h4 fw-bold mb-3">Upcoming Events</h2>
+      <h2 className="h4 mb-3">Upcoming Events</h2>
       {upcoming.length === 0 ? (
         <p className="text-muted mb-5">No upcoming events right now — check back soon!</p>
       ) : (

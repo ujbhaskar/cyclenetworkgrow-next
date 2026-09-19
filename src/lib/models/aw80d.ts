@@ -32,11 +32,32 @@ export type Aw80dTeam = {
   teamName: string;
   logoUrl: string | null;
   memberCount: number;
-  // Rules §6b: only the top 20 riders' distance counts toward the team
-  // total, regardless of team size.
+  // Rules §6b/§9: only the top 20 riders — ranked by points, same as the
+  // individual leaderboard — count toward both the team's distance goal and
+  // its points total, regardless of team size.
   qualifyingDistanceKm: number;
+  qualifyingPoints: number;
   totalDistanceKm: number;
   qualifies: boolean;
+  // Individual finishers (§6c.i, 1500km+) on this team — independent of
+  // whether the team itself qualifies (§6e).
+  qualifierCount: number;
+};
+
+// Every ride a rider synced within the event window, for the "verify
+// rides" audit view — unlike the leaderboard totals, this includes rides
+// that don't count (e.g. failed the §7d elapsed/moving-time check), each
+// annotated with why, so riders/captains can see exactly what was excluded
+// and why their total doesn't match the raw Strava feed.
+export type Aw80dVerificationRide = {
+  activityId: string;
+  distanceKm: number;
+  elevationM: number;
+  type: string;
+  startDate: string;
+  points: number;
+  counted: boolean;
+  exclusionReason: string | null;
 };
 
 export type Aw80dLeaderboardData = {
@@ -47,6 +68,9 @@ export type Aw80dLeaderboardData = {
   topMaleByElevation: Aw80dRider[];
   topFemaleByElevation: Aw80dRider[];
   finisherCount: number;
+  goldCount: number;
+  silverCount: number;
+  bronzeCount: number;
   totalDistanceKm: number;
   totalElevationM: number;
   teamGoalKm: number;

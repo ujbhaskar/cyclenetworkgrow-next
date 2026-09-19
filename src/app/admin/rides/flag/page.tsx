@@ -1,10 +1,19 @@
-import PlaceholderPage from "@/components/PlaceholderPage";
+import { requireRole } from "@/lib/auth/dal";
+import { getRideRulesConfig } from "@/lib/ride-rules";
+import RideFlaggingPanel from "@/components/admin/RideFlaggingPanel";
 
-export default function AdminRideFlagPage() {
+export default async function AdminRideFlagPage() {
+  await requireRole("admin");
+  const rideRules = await getRideRulesConfig();
+
   return (
-    <PlaceholderPage
-      title="Ride Flagging"
-      description="Browse a rider's ride history, flag/cheat/retype rides — see docs/ARCHITECTURE.md §7.1."
-    />
+    <div>
+      <h1 className="h3 mb-1">Ride Flagging</h1>
+      <p className="text-muted mb-4">
+        Pick a rider, then flag, retype (Ride/VirtualRide/Trainer), edit elevation, or remove any of their synced
+        activities.
+      </p>
+      <RideFlaggingPanel rideRules={rideRules} />
+    </div>
   );
 }

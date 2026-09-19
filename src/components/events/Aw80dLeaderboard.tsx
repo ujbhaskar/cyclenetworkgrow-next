@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Table from "react-bootstrap/Table";
 import { Modal, ModalHeader, ModalTitle, ModalBody, Tab, Tabs, Badge } from "react-bootstrap";
-import type { Aw80dLeaderboardData, Aw80dRider } from "@/lib/models/aw80d";
-import type { QualifyingRide } from "@/lib/models/rider-metric";
+import type { Aw80dLeaderboardData, Aw80dRider, Aw80dVerificationRide } from "@/lib/models/aw80d";
 import UserAvatar from "@/components/UserAvatar";
 
 const MEDAL_BADGE: Record<string, { label: string; className: string }> = {
@@ -16,6 +15,35 @@ const MEDAL_BADGE: Record<string, { label: string; className: string }> = {
 // Rules §6b — only each team's top 20 riders by distance count toward the
 // team goal. Kept in sync with TOP_N_RIDERS_FOR_TEAM in src/lib/aw80d.ts.
 const TOP_N_COUNTED_TOWARD_TEAM_GOAL = 20;
+
+// Fun-fact yardsticks for the main leaderboard's totals — real-world
+// distances/heights, not event rules.
+const EARTH_EQUATOR_KM = 40075;
+const EARTH_MOON_KM = 384400;
+const EVEREST_HEIGHT_M = 8849;
+const KARMAN_LINE_M = 100000; // edge of space
+
+function distanceFunFact(totalDistanceKm: number): string {
+  const earthLaps = totalDistanceKm / EARTH_EQUATOR_KM;
+  const moonTrips = totalDistanceKm / EARTH_MOON_KM;
+  return `≈ ${earthLaps.toLocaleString(undefined, { maximumFractionDigits: 1 })} laps around the Earth, or ${moonTrips.toLocaleString(undefined, { maximumFractionDigits: 1 })}x to the Moon`;
+}
+
+function elevationFunFact(totalElevationM: number): string {
+  const everestClimbs = totalElevationM / EVEREST_HEIGHT_M;
+  const spaceEdgeTrips = totalElevationM / KARMAN_LINE_M;
+  return `≈ ${everestClimbs.toLocaleString(undefined, { maximumFractionDigits: 0 })}x up Mount Everest, or ${spaceEdgeTrips.toLocaleString(undefined, { maximumFractionDigits: 1 })}x past the edge of space`;
+}
+
+// Mirrors eventWindowBounds's IST-day handling in src/lib/aw80d.ts, so
+// "has the event ended" agrees with the same calendar day the server uses
+// to decide which rides count.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+function hasEventEnded(eventEndDate: string): boolean {
+  const eventEndMs = new Date(eventEndDate).getTime() - IST_OFFSET_MS + ONE_DAY_MS - 1;
+  return Date.now() > eventEndMs;
+}
 
 function RiderList({ title, riders, unit }: { title: string; riders: Aw80dRider[]; unit: "distance" | "elevation" }) {
   if (riders.length === 0) {
@@ -38,8 +66,8 @@ function RiderList({ title, riders, unit }: { title: string; riders: Aw80dRider[
           </div>
           <span className="small text-muted">
             {unit === "distance"
-              ? `${rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km`
-              : `${rider.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m`}
+              ? `${rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km`
+              : `${rider.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 2 })} m`}
           </span>
         </div>
       ))}
@@ -57,23 +85,20 @@ export default function Aw80dLeaderboard({
   eventEndDate: string;
 }) {
   const { teams, riders, topMaleByDistance, topFemaleByDistance, topMaleByElevation, topFemaleByElevation } = data;
+  const eventEnded = hasEventEnded(eventEndDate);
 
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
-  const [rides, setRides] = useState<QualifyingRide[] | null>(null);
+  const [rides, setRides] = useState<Aw80dVerificationRide[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const selectedTeam = teams.find((t) => t.teamId === selectedTeamId) ?? null;
   const selectedTeamMembers = selectedTeamId
-    ? riders.filter((r) => r.teamId === selectedTeamId).slice().sort((a, b) => b.totalDistanceKm - a.totalDistanceKm)
+    ? riders.filter((r) => r.teamId === selectedTeamId).slice().sort((a, b) => b.totalPoints - a.totalPoints)
     : [];
 
-  function openTeam(teamId: string) {
-    setSelectedTeamId(teamId);
-  }
-
-  function closeTeam() {
-    setSelectedTeamId(null);
+  function toggleTeam(teamId: string) {
+    setSelectedTeamId((current) => (current === teamId ? null : teamId));
   }
 
   const PAGE_SIZE = 50;
@@ -132,18 +157,40 @@ export default function Aw80dLeaderboard({
             <i className="bi bi-trophy-fill text-warning me-1" aria-hidden />
             Individual Finishers ({data.finisherTargetKm.toLocaleString()}km+)
           </div>
+          <div className="small mt-1 d-flex gap-3">
+            <span className="text-warning-emphasis">
+              <Badge bg="warning" className="text-dark me-1">
+                Gold
+              </Badge>
+              {data.goldCount}
+            </span>
+            <span>
+              <Badge bg="secondary" className="bg-opacity-50 me-1">
+                Silver
+              </Badge>
+              {data.silverCount}
+            </span>
+            <span>
+              <Badge bg="danger" className="bg-opacity-25 text-danger-emphasis me-1">
+                Bronze
+              </Badge>
+              {data.bronzeCount}
+            </span>
+          </div>
         </div>
         <div>
           <div className="fs-3 fw-semibold lh-1">
-            {data.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km
+            {data.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km
           </div>
           <div className="text-muted small mt-1">Total Distance</div>
+          <div className="text-muted small mt-1 fst-italic">{distanceFunFact(data.totalDistanceKm)}</div>
         </div>
         <div>
           <div className="fs-3 fw-semibold lh-1">
-            {data.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m
+            {data.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 2 })} m
           </div>
           <div className="text-muted small mt-1">Total Elevation</div>
+          <div className="text-muted small mt-1 fst-italic">{elevationFunFact(data.totalElevationM)}</div>
         </div>
       </div>
 
@@ -155,14 +202,21 @@ export default function Aw80dLeaderboard({
                 <tr>
                   <th>Rank</th>
                   <th>Team</th>
-                  <th className="text-center">Members</th>
-                  <th>Top-20 Distance</th>
+                  <th className="text-center">Qualifiers</th>
+                  <th>Distance</th>
+                  <th className="text-end">Points</th>
                   <th className="text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {teams.map((team, index) => (
-                  <tr key={team.teamId} role="button" style={{ cursor: "pointer" }} onClick={() => openTeam(team.teamId)}>
+                  <tr
+                    key={team.teamId}
+                    role="button"
+                    style={{ cursor: "pointer" }}
+                    className={team.teamId === selectedTeamId ? "table-active" : ""}
+                    onClick={() => toggleTeam(team.teamId)}
+                  >
                     <td>{index + 1}</td>
                     <td>
                       <div className="d-flex align-items-center gap-2">
@@ -174,10 +228,10 @@ export default function Aw80dLeaderboard({
                         {team.teamName}
                       </div>
                     </td>
-                    <td className="text-center">{team.memberCount}</td>
+                    <td className="text-center">{team.qualifierCount}</td>
                     <td style={{ minWidth: 220 }}>
                       <div className="d-flex justify-content-between small mb-1">
-                        <span>{team.qualifyingDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 0 })} km</span>
+                        <span>{team.qualifyingDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km</span>
                         <span className="text-muted">of {data.teamGoalKm.toLocaleString()} km</span>
                       </div>
                       <div className="progress" style={{ height: 6 }}>
@@ -187,12 +241,15 @@ export default function Aw80dLeaderboard({
                         />
                       </div>
                     </td>
+                    <td className="text-end">
+                      {team.qualifyingPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </td>
                     <td className="text-center">
                       {team.qualifies ? (
                         <Badge bg="success" className="bg-opacity-10 text-success">
                           Qualified
                         </Badge>
-                      ) : (
+                      ) : eventEnded ? null : (
                         <span className="text-muted small">In progress</span>
                       )}
                     </td>
@@ -201,6 +258,76 @@ export default function Aw80dLeaderboard({
               </tbody>
             </Table>
           </div>
+
+          {selectedTeam && (
+            <div className="pt-2 pb-4">
+              <div className="d-flex align-items-center justify-content-between mb-3">
+                <h3 className="h6 fw-bold mb-0 d-flex align-items-center gap-2">
+                  {selectedTeam.logoUrl ? (
+                    <UserAvatar photoUrl={selectedTeam.logoUrl} size={24} />
+                  ) : (
+                    <i className="bi bi-airplane text-success" aria-hidden />
+                  )}
+                  {selectedTeam.teamName} — Members
+                </h3>
+                <button type="button" className="btn-close" aria-label="Close" onClick={() => setSelectedTeamId(null)} />
+              </div>
+              {selectedTeamMembers.length === 0 ? (
+                <p className="text-muted mb-0">No riders on this team yet.</p>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <Table size="sm" hover className="align-middle">
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Rider</th>
+                        <th className="text-end">Distance</th>
+                        <th className="text-end">Points</th>
+                        <th className="text-center">Medal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedTeamMembers.map((rider, index) => {
+                        const medal = rider.medal ? MEDAL_BADGE[rider.medal] : null;
+                        return (
+                          <tr
+                            key={rider.phone}
+                            role="button"
+                            style={{ cursor: "pointer" }}
+                            onClick={() => openRider(rider.phone)}
+                          >
+                            <td>{index + 1}</td>
+                            <td>
+                              <div className="d-flex align-items-center gap-2">
+                                <UserAvatar photoUrl={rider.photoUrl} size={28} />
+                                <div>
+                                  <div className="text-primary">{rider.name}</div>
+                                  <div className="text-muted" style={{ fontSize: 11 }}>
+                                    {rider.city}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-end">
+                              {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km
+                            </td>
+                            <td className="text-end">{rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                            <td className="text-center">
+                              {medal ? <Badge className={medal.className}>{medal.label}</Badge> : <span className="text-muted">–</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                  <p className="text-muted small mb-0">
+                    Only the top {TOP_N_COUNTED_TOWARD_TEAM_GOAL} riders by distance count toward the team&apos;s{" "}
+                    {data.teamGoalKm.toLocaleString()}km goal.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </Tab>
 
         <Tab eventKey="individual" title="Individual">
@@ -235,12 +362,12 @@ export default function Aw80dLeaderboard({
                         </div>
                       </td>
                       <td className="text-end">
-                        {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km
+                        {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km
                       </td>
                       <td className="text-end">
-                        {rider.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m
+                        {rider.totalElevationM.toLocaleString(undefined, { maximumFractionDigits: 2 })} m
                       </td>
-                      <td className="text-end">{rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="text-end">{rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
                       <td className="text-center">
                         {medal ? <Badge className={medal.className}>{medal.label}</Badge> : <span className="text-muted">–</span>}
                       </td>
@@ -270,79 +397,13 @@ export default function Aw80dLeaderboard({
         </Tab>
       </Tabs>
 
-      <Modal show={selectedTeam !== null} onHide={closeTeam} centered size="lg">
-        <ModalHeader closeButton>
-          <ModalTitle>
-            <div className="d-flex align-items-center gap-2">
-              {selectedTeam?.logoUrl ? (
-                <UserAvatar photoUrl={selectedTeam.logoUrl} size={28} />
-              ) : (
-                <i className="bi bi-airplane text-success" aria-hidden />
-              )}
-              {selectedTeam?.teamName}
-            </div>
-          </ModalTitle>
-        </ModalHeader>
-        <ModalBody>
-          {selectedTeamMembers.length === 0 ? (
-            <p className="text-muted mb-0">No riders on this team yet.</p>
-          ) : (
-            <div style={{ overflowX: "auto" }}>
-              <Table size="sm" hover className="align-middle">
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Rider</th>
-                    <th className="text-end">Distance</th>
-                    <th className="text-end">Points</th>
-                    <th className="text-center">Medal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedTeamMembers.map((rider, index) => {
-                    const medal = rider.medal ? MEDAL_BADGE[rider.medal] : null;
-                    return (
-                      <tr key={rider.phone}>
-                        <td>{index + 1}</td>
-                        <td>
-                          <div className="d-flex align-items-center gap-2">
-                            <UserAvatar photoUrl={rider.photoUrl} size={28} />
-                            <div>
-                              <div>{rider.name}</div>
-                              <div className="text-muted" style={{ fontSize: 11 }}>
-                                {rider.city}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="text-end">
-                          {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km
-                        </td>
-                        <td className="text-end">{rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                        <td className="text-center">
-                          {medal ? <Badge className={medal.className}>{medal.label}</Badge> : <span className="text-muted">–</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Table>
-              <p className="text-muted small mb-0">
-                Only the top {TOP_N_COUNTED_TOWARD_TEAM_GOAL} riders by distance count toward the team&apos;s {" "}
-                {data.teamGoalKm.toLocaleString()}km goal.
-              </p>
-            </div>
-          )}
-        </ModalBody>
-      </Modal>
-
       <Modal show={selectedRider !== null} onHide={close} centered size="lg">
         <ModalHeader closeButton>
           <ModalTitle>{selectedRider?.name}&apos;s Rides</ModalTitle>
         </ModalHeader>
         <ModalBody>
           {loading && <p className="text-muted mb-0">Loading rides…</p>}
-          {!loading && rides && rides.length === 0 && <p className="text-muted mb-0">No qualifying rides found.</p>}
+          {!loading && rides && rides.length === 0 && <p className="text-muted mb-0">No rides found.</p>}
           {!loading && rides && rides.length > 0 && (
             <div style={{ overflowX: "auto" }}>
               <Table size="sm" hover>
@@ -353,19 +414,38 @@ export default function Aw80dLeaderboard({
                     <th>Type</th>
                     <th className="text-end">Distance</th>
                     <th className="text-end">Elevation</th>
+                    <th className="text-end">Points</th>
+                    <th>Status</th>
                     <th className="text-center">Strava</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rides.map((ride, index) => (
-                    <tr key={ride.activityId}>
+                    <tr key={ride.activityId} className={ride.counted ? "" : "text-muted"}>
                       <td>{index + 1}</td>
                       <td className="text-nowrap">
                         {new Date(ride.startDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                       </td>
                       <td>{ride.type}</td>
-                      <td className="text-end">{ride.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</td>
-                      <td className="text-end">{ride.elevationM.toLocaleString(undefined, { maximumFractionDigits: 0 })} m</td>
+                      <td className="text-end">{ride.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 2 })} km</td>
+                      <td className="text-end">{ride.elevationM.toLocaleString(undefined, { maximumFractionDigits: 2 })} m</td>
+                      <td className="text-end">{ride.points.toLocaleString(undefined, { maximumFractionDigits: 2 })}</td>
+                      <td>
+                        {ride.counted ? (
+                          <Badge bg="success" className="bg-opacity-10 text-success">
+                            Counted
+                          </Badge>
+                        ) : (
+                          <span title={ride.exclusionReason ?? undefined}>
+                            <Badge bg="danger" className="bg-opacity-10 text-danger">
+                              Excluded
+                            </Badge>
+                            <div className="small text-muted mt-1" style={{ maxWidth: 220 }}>
+                              {ride.exclusionReason}
+                            </div>
+                          </span>
+                        )}
+                      </td>
                       <td className="text-center">
                         <a
                           href={`https://www.strava.com/activities/${ride.activityId}`}
