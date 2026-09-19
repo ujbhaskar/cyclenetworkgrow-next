@@ -69,7 +69,7 @@ caveat as everything else Strava-related here (see the admin Strava Subscription
 Every event received is recorded to `stravaWebhookEvents` regardless of whether it goes
 on to create/update/delete a ride (raw audit trail — lets a failed/skipped event be
 inspected or manually replayed). That collection has a **Firestore TTL policy on its
-`expiresAt` field** (30 days after `receivedAt`, set by the route itself), so it doesn't
+`expiresAt` field** (7 days after `receivedAt`, set by the route itself), so it doesn't
 grow forever — this is debug/audit data, not ride data (`rides/{phone}` is untouched by
 the TTL and never expires). Created with:
 

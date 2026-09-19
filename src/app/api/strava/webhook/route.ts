@@ -164,7 +164,7 @@ export async function POST(request: Request) {
     const receivedAt = new Date();
     adminDb
       .collection("stravaWebhookEvents")
-      .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 30 * 24 * 60 * 60 * 1000) })
+      .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 7 * 24 * 60 * 60 * 1000) })
       .catch((err) => console.error("[strava webhook] failed to record event:", err));
   }
 
