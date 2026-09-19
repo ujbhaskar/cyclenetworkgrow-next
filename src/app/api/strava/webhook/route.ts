@@ -1,4 +1,4 @@
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { STRAVA_WEBHOOK_VERIFY_TOKEN } from "@/lib/strava";
 import { findStravaTokenDocById, getValidStravaAccessToken } from "@/lib/strava-tokens";
@@ -70,6 +70,13 @@ async function fetchActivity(activityId: number, accessToken: string): Promise<R
   return res.json();
 }
 
+// Persisted onto the event's own stravaWebhookEvents doc (see the outcome
+// param threaded through below) so the admin viewer can show "accepted vs
+// discarded, and why" without a second data source (e.g. Cloud Logging) —
+// this is genuinely more query-able and doesn't need the app's own
+// service account granted log-reading permissions it doesn't have today.
+type Outcome = { outcome: "accepted" | "discarded" | "deleted" | "not_participant" | "ignored" | "error"; reason: string };
+
 /**
  * Turns one webhook "create" event into a rides/{phone} write — mirrors
  * letscng-api's webhookController.postWebhook, except the elapsed/moving
@@ -77,11 +84,12 @@ async function fetchActivity(activityId: number, accessToken: string): Promise<R
  * aw80d.ts) and the distance thresholds come from rideRulesConfig instead
  * of being hardcoded.
  */
-async function ingestCreatedActivity(activityId: number, athleteId: number, phone: string): Promise<void> {
+async function ingestCreatedActivity(activityId: number, athleteId: number, phone: string): Promise<Outcome> {
   const tokenDoc = await findStravaTokenDocById(String(athleteId));
   if (!tokenDoc) {
-    console.error(`[strava webhook] no token on file for athlete ${athleteId}, can't fetch activity ${activityId}`);
-    return;
+    const reason = `No Strava token on file for athlete ${athleteId}`;
+    console.error(`[strava webhook] ${reason}, can't fetch activity ${activityId}`);
+    return { outcome: "error", reason };
   }
 
   const [accessToken, rules] = await Promise.all([
@@ -90,16 +98,18 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
   ]);
   const activity = await fetchActivity(activityId, accessToken);
 
-  if (
-    (activity.type !== "Ride" && activity.type !== "VirtualRide") ||
-    activity.manual ||
-    activity.from_accepted_tag ||
-    activity.distance < rules.minRideDistanceKm * 1000
-  ) {
-    console.log(
-      `[strava webhook] skipped activity ${activityId} for phone ${phone}: type=${activity.type} manual=${activity.manual} fromTag=${activity.from_accepted_tag} distanceM=${activity.distance} (min=${rules.minRideDistanceKm * 1000})`,
-    );
-    return;
+  if (activity.type !== "Ride" && activity.type !== "VirtualRide") {
+    return { outcome: "discarded", reason: `Not a Ride/VirtualRide (type=${activity.type})` };
+  }
+  if (activity.manual) {
+    return { outcome: "discarded", reason: "Manually-entered activity, not GPS-tracked" };
+  }
+  if (activity.from_accepted_tag) {
+    return { outcome: "discarded", reason: "Created from a tagged/accepted activity" };
+  }
+  if (activity.distance < rules.minRideDistanceKm * 1000) {
+    const distanceKm = (activity.distance / 1000).toFixed(1);
+    return { outcome: "discarded", reason: `Below the ${rules.minRideDistanceKm}km minimum (${distanceKm}km)` };
   }
 
   let distance = activity.distance;
@@ -131,7 +141,9 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
       },
       { merge: true },
     );
-  console.log(`[strava webhook] ingested activity ${activityId} (${activity.type}, ${Math.round(distance / 1000)}km) for phone ${phone}`);
+  const distanceKm = Math.round(distance / 1000);
+  console.log(`[strava webhook] ingested activity ${activityId} (${activity.type}, ${distanceKm}km) for phone ${phone}`);
+  return { outcome: "accepted", reason: `Ingested — ${activity.type}, ${distanceKm}km` };
 }
 
 /**
@@ -155,24 +167,36 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
  */
 export async function POST(request: Request) {
   const event = (await request.json().catch(() => null)) as StravaWebhookEvent | null;
-
-  if (event) {
-    // Not awaited into the response — Strava disables a subscription
-    // that's consistently slow to ack. expiresAt drives this collection's
-    // Firestore TTL policy (see docs/DEPLOY.md) so this audit log doesn't
-    // grow forever.
-    const receivedAt = new Date();
-    adminDb
-      .collection("stravaWebhookEvents")
-      .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 7 * 24 * 60 * 60 * 1000) })
-      .catch((err) => console.error("[strava webhook] failed to record event:", err));
+  if (!event) {
+    return Response.json({ ok: true });
   }
 
-  if (!event || event.object_type !== "activity" || !event.object_id || !event.owner_id) {
+  // Awaited (unlike the fire-and-forget it used to be) so outcome/reason
+  // below can be written onto this exact doc — the admin viewer's
+  // "accepted vs discarded, and why" column. Still just one small write;
+  // the Strava API calls in between dominate this request's latency
+  // either way. expiresAt drives this collection's TTL policy (see
+  // docs/DEPLOY.md) so the audit log doesn't grow forever.
+  const receivedAt = new Date();
+  let eventDoc: DocumentReference | null = null;
+  try {
+    eventDoc = await adminDb
+      .collection("stravaWebhookEvents")
+      .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 7 * 24 * 60 * 60 * 1000) });
+  } catch (err) {
+    console.error("[strava webhook] failed to record event:", err);
+  }
+
+  async function finish(result: Outcome) {
+    await eventDoc?.update({ outcome: result.outcome, outcomeReason: result.reason }).catch(() => {});
     return Response.json({ ok: true });
+  }
+
+  if (event.object_type !== "activity" || !event.object_id || !event.owner_id) {
+    return finish({ outcome: "ignored", reason: `Not an activity event (object_type=${event.object_type})` });
   }
   if (event.aspect_type !== "create" && event.aspect_type !== "delete") {
-    return Response.json({ ok: true });
+    return finish({ outcome: "ignored", reason: `Aspect type "${event.aspect_type}" not processed (only create/delete)` });
   }
 
   try {
@@ -183,26 +207,29 @@ export async function POST(request: Request) {
     if (!participant) {
       // Not registered for the event we're syncing rides for — same as
       // letscng-api, silently ack and do nothing.
-      return Response.json({ ok: true });
+      return finish({ outcome: "not_participant", reason: "Athlete not registered for the 1177 event" });
     }
 
     if (event.aspect_type === "delete") {
-      await adminDb
+      const deleted = await adminDb
         .collection(RIDES_COLLECTION)
         .doc(participant.phone)
         .update({ [String(event.object_id)]: FieldValue.delete() })
-        .then(() => console.log(`[strava webhook] deleted activity ${event.object_id} for phone ${participant.phone}`))
-        .catch(() => {
-          // No rides doc (or field) for this phone yet — nothing to delete.
-        });
-    } else {
-      await ingestCreatedActivity(event.object_id, event.owner_id, participant.phone);
+        .then(() => true)
+        .catch(() => false); // No rides doc (or field) for this phone yet — nothing to delete.
+      console.log(`[strava webhook] deleted activity ${event.object_id} for phone ${participant.phone}`);
+      return finish({
+        outcome: "deleted",
+        reason: deleted ? "Ride removed" : "Nothing to remove (no matching ride on file)",
+      });
     }
+
+    const result = await ingestCreatedActivity(event.object_id, event.owner_id, participant.phone);
+    return finish(result);
   } catch (err) {
     // Ack anyway — Strava retries/disables on repeated failure or timeout,
     // and the raw event is already recorded above for manual replay.
     console.error("[strava webhook] failed to process event:", err);
+    return finish({ outcome: "error", reason: err instanceof Error ? err.message : "Unknown error" });
   }
-
-  return Response.json({ ok: true });
 }

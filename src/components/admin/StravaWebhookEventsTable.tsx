@@ -18,6 +18,23 @@ const ASPECT_BADGE_VARIANT: Record<string, string> = {
   delete: "danger",
 };
 
+const OUTCOME_BADGE_VARIANT: Record<string, string> = {
+  accepted: "success",
+  discarded: "warning",
+  deleted: "info",
+  not_participant: "secondary",
+  ignored: "secondary",
+  error: "danger",
+};
+const OUTCOME_LABEL: Record<string, string> = {
+  accepted: "Accepted",
+  discarded: "Discarded",
+  deleted: "Deleted",
+  not_participant: "Not a participant",
+  ignored: "Ignored",
+  error: "Error",
+};
+
 type Filters = { ownerId: string; from: string; to: string };
 const EMPTY_FILTERS: Filters = { ownerId: "", from: "", to: "" };
 
@@ -161,6 +178,8 @@ export default function StravaWebhookEventsTable({
               <th>Activity / Object ID</th>
               <th>Athlete (owner) ID</th>
               <th>Subscription</th>
+              <th>Result</th>
+              <th>Reason</th>
             </tr>
           </thead>
           <tbody>
@@ -194,6 +213,18 @@ export default function StravaWebhookEventsTable({
                   )}
                 </td>
                 <td>{event.subscriptionId ?? "–"}</td>
+                <td>
+                  {event.outcome ? (
+                    <Badge bg={OUTCOME_BADGE_VARIANT[event.outcome] ?? "secondary"}>
+                      {OUTCOME_LABEL[event.outcome] ?? event.outcome}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted">not tracked</span>
+                  )}
+                </td>
+                <td className="text-start small text-muted" style={{ maxWidth: 280 }}>
+                  {event.outcomeReason ?? "–"}
+                </td>
               </tr>
             ))}
           </tbody>

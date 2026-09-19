@@ -12,6 +12,11 @@ export type StravaWebhookEventRow = {
   ownerId: string | null;
   subscriptionId: string | null;
   receivedAt: string;
+  // Set by the webhook route once it's finished processing this event —
+  // null for events still in flight, or ones recorded before this was
+  // added.
+  outcome: string | null;
+  outcomeReason: string | null;
 };
 
 export type StravaWebhookEventPage = {
@@ -69,6 +74,8 @@ export async function listStravaWebhookEvents(
       ownerId: data.owner_id != null ? String(data.owner_id) : null,
       subscriptionId: data.subscription_id != null ? String(data.subscription_id) : null,
       receivedAt: receivedAt.toISOString(),
+      outcome: data.outcome ?? null,
+      outcomeReason: data.outcomeReason ?? null,
     };
   });
 
