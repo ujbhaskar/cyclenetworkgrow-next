@@ -224,7 +224,7 @@ export default function EventLeaderboard({
                         <div
                           key={`${rider.name}-${index}`}
                           className="d-flex align-items-center gap-2 border rounded p-2"
-                          style={{ width: 240 }}
+                          style={{ width: '100%' }}
                         >
                           <UserAvatar photoUrl={rider.photoUrl} />
                           <div>
