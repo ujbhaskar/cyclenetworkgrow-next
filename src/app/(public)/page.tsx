@@ -3,6 +3,7 @@ import UpcomingEvents from "@/components/home/UpcomingEvents";
 import Testimonials from "@/components/home/Testimonials";
 import ReadyToRideBanner from "@/components/home/ReadyToRideBanner";
 import Faq from "@/components/home/Faq";
+import AudaxIndia from "@/components/home/AudaxIndia";
 
 export default function HomePage() {
   return (
@@ -12,6 +13,7 @@ export default function HomePage() {
       <Testimonials />
       <ReadyToRideBanner />
       <Faq />
+      <AudaxIndia />
     </>
   );
 }
