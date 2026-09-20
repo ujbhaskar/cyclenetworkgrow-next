@@ -35,6 +35,7 @@ const ADMIN_NAV: AdminNavSection[] = [
       { href: "/admin/content", label: "Content", icon: "bi-file-richtext" },
       { href: "/admin/content/reviews", label: "Review Moderation", icon: "bi-chat-square-quote" },
       { href: "/admin/content/home-sections", label: "Home Sections", icon: "bi-layout-text-window" },
+      { href: "/admin/content/navigation", label: "Navigation Menu", icon: "bi-list" },
       { href: "/admin/content/instagram", label: "Instagram List", icon: "bi-instagram" },
     ],
   },

@@ -8,12 +8,10 @@ import Nav from "react-bootstrap/Nav";
 import Container from "react-bootstrap/Container";
 import LogoutButton from "@/components/auth/LogoutButton";
 import type { Role } from "@/lib/models/user";
+import type { NavLink } from "@/lib/models/nav-links";
 
-const NAV_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/events", label: "Events" },
-];
-
+// Never admin-editable — always shown to admins, regardless of what's
+// configured in /admin/content/navigation.
 const ADMIN_NAV_LINK = { href: "/admin/dashboard", label: "Admin" };
 
 // Event detail pages (/events/[slug]) have their own full-bleed banner
@@ -47,11 +45,11 @@ function isNavLinkActive(pathname: string, href: string): boolean {
 
 export type HeaderUser = { displayName: string | null; role: Role };
 
-export default function Header({ user }: { user: HeaderUser | null }) {
+export default function Header({ user, navLinks }: { user: HeaderUser | null; navLinks: NavLink[] }) {
   const pathname = usePathname();
   const overlay = isHeroOverlayPage(pathname);
   const eventDetail = isEventDetailPage(pathname);
-  const navLinks = user?.role === "admin" ? [...NAV_LINKS, ADMIN_NAV_LINK] : NAV_LINKS;
+  const links = user?.role === "admin" ? [...navLinks, ADMIN_NAV_LINK] : navLinks;
 
   return (
     <Navbar
@@ -112,7 +110,7 @@ export default function Header({ user }: { user: HeaderUser | null }) {
         </Navbar.Toggle>
         <Navbar.Collapse id="main-nav">
           <Nav className="mx-auto">
-            {navLinks.map((link) => {
+            {links.map((link) => {
               const isActive = isNavLinkActive(pathname, link.href);
               return (
                 <Nav.Link
