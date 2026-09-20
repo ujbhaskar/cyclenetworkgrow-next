@@ -41,6 +41,10 @@ const FIVE_DAYS_SECONDS = 5 * 24 * 60 * 60;
  *                     type: string
  *                   pincode:
  *                     type: string
+ *                   emergencyContactName:
+ *                     type: string
+ *                   emergencyContactPhone:
+ *                     type: string
  *               rememberMe:
  *                 type: boolean
  *                 description: Defaults to true. When explicitly false, the cookie is set without a Max-Age (cleared when the browser closes) instead of persisting for its full 5-day life.

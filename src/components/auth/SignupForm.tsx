@@ -22,6 +22,8 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
   const [email, setEmail] = useState("");
   const [countryCode, setCountryCode] = useState<string>(DEFAULT_COUNTRY_CODE);
   const [phone, setPhone] = useState("");
@@ -49,6 +51,8 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
           city: city || undefined,
           state: state || undefined,
           pincode: pincode || undefined,
+          emergencyContactName: emergencyContactName || undefined,
+          emergencyContactPhone: emergencyContactPhone || undefined,
         },
       });
       router.push(redirectTo);
@@ -160,6 +164,30 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
                 placeholder="110001"
                 pattern="[1-9][0-9]{5}"
                 maxLength={6}
+              />
+            </Form.Group>
+          </div>
+        </div>
+
+        <div className="row g-3 mb-3">
+          <div className="col-sm-6">
+            <Form.Group>
+              <Form.Label>Emergency contact name (optional)</Form.Label>
+              <Form.Control
+                value={emergencyContactName}
+                onChange={(e) => setEmergencyContactName(e.target.value)}
+                placeholder="e.g. a family member"
+              />
+            </Form.Group>
+          </div>
+          <div className="col-sm-6">
+            <Form.Group>
+              <Form.Label>Emergency contact phone (optional)</Form.Label>
+              <Form.Control
+                type="tel"
+                value={emergencyContactPhone}
+                onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                placeholder="98765 43210"
               />
             </Form.Group>
           </div>

@@ -28,6 +28,11 @@ export type UserProfile = {
   city: string | null;
   state: string | null;
   pincode: string | null;
+  // Optional — a contact the event organizers can reach in case something
+  // happens to the rider mid-ride. Free text, not validated as a real phone
+  // number (may be a relative's number in any format/country).
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
   stravaConnected: boolean;
   createdAt: string;
   // Reserved for future corporate/organization accounts (e.g. a "manager"
@@ -51,4 +56,6 @@ export type UserProfileSignupInput = {
   city?: string;
   state?: string;
   pincode?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
 };

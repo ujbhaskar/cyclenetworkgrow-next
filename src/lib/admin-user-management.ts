@@ -76,6 +76,8 @@ export async function createUserByAdmin(input: CreateUserByAdminInput): Promise<
     city: null,
     state: null,
     pincode: null,
+    emergencyContactName: null,
+    emergencyContactPhone: null,
     stravaConnected: false,
     createdAt: new Date().toISOString(),
     organizationId: null,

@@ -38,6 +38,10 @@ export const dynamic = "force-dynamic";
  *               pincode:
  *                 type: string
  *                 description: 6-digit Indian PIN code
+ *               emergencyContactName:
+ *                 type: string
+ *               emergencyContactPhone:
+ *                 type: string
  *     responses:
  *       200:
  *         description: The updated profile
@@ -54,6 +58,10 @@ export async function PATCH(request: Request) {
   const city = typeof body?.city === "string" ? body.city.trim() : undefined;
   const state = typeof body?.state === "string" ? body.state.trim() : undefined;
   const pincode = typeof body?.pincode === "string" ? body.pincode.trim() : undefined;
+  const emergencyContactName =
+    typeof body?.emergencyContactName === "string" ? body.emergencyContactName.trim() : undefined;
+  const emergencyContactPhone =
+    typeof body?.emergencyContactPhone === "string" ? body.emergencyContactPhone.trim() : undefined;
 
   if (!firstName) {
     return Response.json({ error: "First name is required" }, { status: 400 });
@@ -66,7 +74,18 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    await updateOwnProfile(session.uid, { firstName, lastName, email, phone, address, city, state, pincode });
+    await updateOwnProfile(session.uid, {
+      firstName,
+      lastName,
+      email,
+      phone,
+      address,
+      city,
+      state,
+      pincode,
+      emergencyContactName,
+      emergencyContactPhone,
+    });
   } catch (err) {
     if (err instanceof ProfileUpdateError) {
       return Response.json({ error: err.message }, { status: 400 });

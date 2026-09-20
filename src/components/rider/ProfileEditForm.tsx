@@ -19,6 +19,8 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
   const [city, setCity] = useState(profile.city ?? "");
   const [state, setState] = useState(profile.state ?? "");
   const [pincode, setPincode] = useState(profile.pincode ?? "");
+  const [emergencyContactName, setEmergencyContactName] = useState(profile.emergencyContactName ?? "");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(profile.emergencyContactPhone ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -32,7 +34,18 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
       const res = await fetch("/api/profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, phone, address, city, state, pincode }),
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          phone,
+          address,
+          city,
+          state,
+          pincode,
+          emergencyContactName,
+          emergencyContactPhone,
+        }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -158,6 +171,35 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
             onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             placeholder="110001"
             maxLength={6}
+          />
+        </div>
+      </div>
+
+      <div className="row g-3 mb-3">
+        <div className="col-sm-6">
+          <label htmlFor="emergencyContactName" className="form-label">
+            Emergency contact name
+          </label>
+          <input
+            id="emergencyContactName"
+            type="text"
+            className="form-control"
+            value={emergencyContactName}
+            onChange={(e) => setEmergencyContactName(e.target.value)}
+            placeholder="e.g. a family member"
+          />
+        </div>
+        <div className="col-sm-6">
+          <label htmlFor="emergencyContactPhone" className="form-label">
+            Emergency contact phone
+          </label>
+          <input
+            id="emergencyContactPhone"
+            type="tel"
+            className="form-control"
+            value={emergencyContactPhone}
+            onChange={(e) => setEmergencyContactPhone(e.target.value)}
+            placeholder="98765 43210"
           />
         </div>
       </div>

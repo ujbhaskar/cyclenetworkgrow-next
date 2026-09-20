@@ -45,6 +45,10 @@ export async function upsertUserProfile(
   const city = profileInput?.city || existingData?.city || null;
   const state = profileInput?.state || existingData?.state || null;
   const pincode = profileInput?.pincode || existingData?.pincode || null;
+  const emergencyContactName =
+    profileInput?.emergencyContactName || existingData?.emergencyContactName || null;
+  const emergencyContactPhone =
+    profileInput?.emergencyContactPhone || existingData?.emergencyContactPhone || null;
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || email || phone || "Rider";
 
   const data: Omit<UserProfile, "role" | "createdAt"> = {
@@ -58,6 +62,8 @@ export async function upsertUserProfile(
     city,
     state,
     pincode,
+    emergencyContactName,
+    emergencyContactPhone,
     stravaConnected: existingData?.stravaConnected ?? false,
     organizationId: existingData?.organizationId ?? null,
   };
@@ -100,6 +106,8 @@ export async function updateOwnProfile(
     city?: string;
     state?: string;
     pincode?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
   }
 ): Promise<void> {
   const ref = adminDb.collection("users").doc(uid);
@@ -132,10 +140,24 @@ export async function updateOwnProfile(
   const city = fields.city || existing?.city || null;
   const state = fields.state || existing?.state || null;
   const pincode = fields.pincode || existing?.pincode || null;
+  const emergencyContactName = fields.emergencyContactName || existing?.emergencyContactName || null;
+  const emergencyContactPhone = fields.emergencyContactPhone || existing?.emergencyContactPhone || null;
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || email || phone || "Rider";
 
   await ref.set(
-    { email, firstName, lastName, phone, address, city, state, pincode, displayName },
+    {
+      email,
+      firstName,
+      lastName,
+      phone,
+      address,
+      city,
+      state,
+      pincode,
+      emergencyContactName,
+      emergencyContactPhone,
+      displayName,
+    },
     { merge: true }
   );
 }
