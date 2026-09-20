@@ -109,6 +109,7 @@ export default function EventLeaderboard({
   eventStartDate,
   eventEndDate,
   registeredRiders = [],
+  currentUserPhone = null,
 }: {
   data: EventLeaderboardData;
   eventStartDate: string;
@@ -116,6 +117,10 @@ export default function EventLeaderboard({
   /** Shown as a fallback while there's no ride data yet (e.g. before the
    * event starts) — registration info, not ride results. */
   registeredRiders?: PublicEventRider[];
+  /** The signed-in visitor's own phone (matches RiderMetric.phone), so
+   * their own row can be highlighted/scrolled to — null for a signed-out
+   * visitor or one with no phone on file. */
+  currentUserPhone?: string | null;
 }) {
   const {
     riders,
@@ -138,10 +143,26 @@ export default function EventLeaderboard({
   const [rides, setRides] = useState<QualifyingRide[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // -1 when signed out, no phone on file, or not a rider in this event.
+  const myRowIndex = currentUserPhone ? riders.findIndex((r) => r.phone === currentUserPhone) : -1;
+
   const PAGE_SIZE = 50;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  // Lazy initializer, not an effect — if the viewer's own row is further
+  // down than the first page, include it from the start instead of making
+  // them scroll/load-more to find it.
+  const [visibleCount, setVisibleCount] = useState(() =>
+    myRowIndex >= 0 ? Math.max(PAGE_SIZE, myRowIndex + 1) : PAGE_SIZE,
+  );
   const visibleRiders = riders.slice(0, visibleCount);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const myRowRef = useRef<HTMLTableRowElement | null>(null);
+
+  // One-time scroll to the viewer's own row on load — a courtesy for when
+  // it's off the initial screen (deep in a long, unsorted-by-distance-tie
+  // list), not re-triggered on every re-render.
+  useEffect(() => {
+    myRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -260,12 +281,20 @@ export default function EventLeaderboard({
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleRiders.map((rider, index) => (
+                    {visibleRiders.map((rider, index) => {
+                      const isMe = index === myRowIndex;
+                      return (
                       <tr
                         key={rider.phone}
+                        ref={isMe ? myRowRef : undefined}
                         role="button"
                         onClick={() => openRider(rider.phone)}
-                        style={{ cursor: "pointer" }}
+                        style={{
+                          cursor: "pointer",
+                          ...(isMe
+                            ? { backgroundColor: "rgba(76,175,109,0.14)", boxShadow: "inset 3px 0 0 #4caf6d" }
+                            : {}),
+                        }}
                         title="View this rider's qualifying rides"
                       >
                         <td>{index + 1}</td>
@@ -275,6 +304,7 @@ export default function EventLeaderboard({
                             <div>
                               <div className="text-primary">
                                 {rider.name}
+                                {isMe && <span className="badge bg-success ms-2">You</span>}
                                 {rider.isFinisher && (
                                   <i
                                     className="bi bi-trophy-fill text-warning ms-2"
@@ -305,7 +335,8 @@ export default function EventLeaderboard({
                           {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </Table>
                 {visibleCount < riders.length && (

@@ -34,6 +34,10 @@ export default async function ProfilePage({ searchParams }: PageProps<"/profile"
 
   return (
     <Container className="py-3" style={{ maxWidth: 600 }}>
+      <Link href="/" className="d-inline-flex align-items-center gap-1 text-decoration-none small mb-3">
+        <i className="bi bi-arrow-left" aria-hidden />
+        Back to home
+      </Link>
       <h1 className="h3 mb-4">Your Profile</h1>
 
       {profile && <ProfileEditForm profile={profile} />}

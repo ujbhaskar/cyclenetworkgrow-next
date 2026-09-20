@@ -10,6 +10,11 @@ export type { Role } from "@/lib/models/user";
 export type Session = {
   uid: string;
   role: Role;
+  // Set only for a session created via the admin "Log in as" tool — the
+  // admin's own uid, so the site can show an "end impersonation" banner and
+  // audit trail can tie the impersonated session back to who started it.
+  // See src/app/api/admin/users/[uid]/impersonate/route.ts.
+  impersonatedBy: string | null;
 };
 
 /**
@@ -30,7 +35,8 @@ export const getOptionalSession = cache(async (): Promise<Session | null> => {
   try {
     const decoded = await verifySessionCookieStrict(sessionCookie);
     const role: Role = ROLES.includes(decoded.role) ? decoded.role : "rider";
-    return { uid: decoded.uid, role };
+    const impersonatedBy = typeof decoded.impersonatedBy === "string" ? decoded.impersonatedBy : null;
+    return { uid: decoded.uid, role, impersonatedBy };
   } catch (err) {
     // A signed-out visitor and a rejected/expired cookie both end up here as
     // a plain null, which is correct — but silently means the same thing to

@@ -9,6 +9,7 @@ import Toast from "react-bootstrap/Toast";
 import ToastContainer from "react-bootstrap/ToastContainer";
 import { ROLES, type Role, type UserProfile } from "@/lib/models/user";
 import CreateUserModal from "./CreateUserModal";
+import ImpersonateButton from "./ImpersonateButton";
 
 export default function UsersTable({
   initialUsers,
@@ -104,7 +105,8 @@ export default function UsersTable({
                 </Form.Select>
               </td>
               <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-              <td>
+              <td className="d-flex gap-2">
+                <ImpersonateButton uid={user.uid} disabled={user.uid === currentUid || user.role === "admin"} />
                 <Button
                   size="sm"
                   variant="outline-danger"

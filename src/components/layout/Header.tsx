@@ -138,11 +138,11 @@ export default function Header({ user, navLinks }: { user: HeaderUser | null; na
           </Nav>
           {user ? (
             <div
-              className={`d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-2 gap-lg-3 ${overlay ? "text-light" : ""}`}
+              className={`d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-3 gap-lg-3 mt-2 mt-lg-0 ${overlay ? "text-light" : ""}`}
             >
               <Link
                 href="/profile"
-                className={`fw-medium text-decoration-none ${overlay ? "text-light" : "text-dark"}`}
+                className={`d-inline-block py-1 fw-medium text-decoration-none ${overlay ? "text-light" : "text-dark"}`}
               >
                 <i className="bi bi-person-circle me-1" aria-hidden />
                 {user.displayName ?? "Rider"}

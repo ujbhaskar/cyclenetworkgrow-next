@@ -59,8 +59,11 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
     try {
       const email = await resolveToEmail(identifier);
       const credential = await signInWithEmailAndPassword(auth, email, password);
-      await establishSession(credential.user, { rememberMe });
-      router.push(redirectTo);
+      const { stravaConnected } = await establishSession(credential.user, { rememberMe });
+      // Nudge riders who haven't connected Strava yet straight to the
+      // profile page to do it, instead of the home page — everyone else
+      // goes wherever they were headed as normal.
+      router.push(stravaConnected ? redirectTo : "/profile");
       router.refresh();
     } catch (err) {
       const code = err instanceof Error && "code" in err ? String((err as { code: unknown }).code) : "";

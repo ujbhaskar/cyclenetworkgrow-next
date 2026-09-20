@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { adminAuth } from "@/lib/firebase/admin";
 import { createSessionCookie, SESSION_COOKIE_NAME } from "@/lib/auth/session";
-import { upsertUserProfile } from "@/lib/user-profile";
+import { getUserProfile, upsertUserProfile } from "@/lib/user-profile";
 
 export const dynamic = "force-dynamic";
 
@@ -86,7 +86,11 @@ export async function POST(request: Request) {
       profile
     );
 
-    return Response.json({ ok: true });
+    // Lets the client decide where to land post-login (e.g. straight to
+    // /profile to connect Strava if it isn't already) without a second
+    // round trip to fetch the profile it just wrote.
+    const userProfile = await getUserProfile(decoded.uid);
+    return Response.json({ ok: true, stravaConnected: userProfile?.stravaConnected ?? false });
   } catch {
     return Response.json({ error: "Invalid ID token" }, { status: 401 });
   }

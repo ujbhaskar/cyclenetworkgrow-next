@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
+import { getOptionalSession } from "@/lib/auth/dal";
+import { getUserProfile } from "@/lib/user-profile";
 import { getEventBySlug, getPublicEventRiders, isEventUpcoming, isEventNotYetStarted } from "@/lib/events";
 import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
@@ -50,6 +52,14 @@ export default async function EventDetailPage({
   // already has its own registered-rider display built into its team
   // leaderboard, so this is only needed for the generic path.
   const registeredRiders = isAw80d ? [] : await getPublicEventRiders(event.id);
+
+  // So the leaderboard can highlight the signed-in visitor's own row — null
+  // for a signed-out visitor or one with no phone on file. RiderMetric.phone
+  // is the bare 10-digit format (no country code), unlike the profile's own
+  // normalizePhone()-formatted "+91..." value, so strip down to match.
+  const session = await getOptionalSession();
+  const profile = session ? await getUserProfile(session.uid) : null;
+  const currentUserPhone = profile?.phone ? profile.phone.replace(/\D/g, "").slice(-10) : null;
 
   return (
     <div>
@@ -156,6 +166,7 @@ export default async function EventDetailPage({
                 eventStartDate={event.startDate}
                 eventEndDate={event.endDate}
                 registeredRiders={registeredRiders}
+                currentUserPhone={currentUserPhone}
               />
             )
           )}
