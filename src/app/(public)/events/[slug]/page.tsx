@@ -3,7 +3,14 @@ import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getUserProfile } from "@/lib/user-profile";
-import { getEventBySlug, getPublicEventRiders, isEventUpcoming, isEventNotYetStarted } from "@/lib/events";
+import {
+  getEventBySlug,
+  getPublicEventRiders,
+  isEventUpcoming,
+  isEventNotYetStarted,
+  isEventLive,
+  getEventDayNumber,
+} from "@/lib/events";
 import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
@@ -42,6 +49,8 @@ export default async function EventDetailPage({
 
   const isUpcoming = isEventUpcoming(event);
   const eventNotYetStarted = isEventNotYetStarted(event);
+  const isLive = isEventLive(event);
+  const eventDayNumber = isLive ? getEventDayNumber(event) : null;
   const isAw80d = event.id === AW80D_EVENT_ID;
   const leaderboard = isAw80d ? null : await getEventLeaderboard(event);
   const aw80dLeaderboard = isAw80d ? await getAw80dLeaderboard(event.startDate, event.endDate) : null;
@@ -138,7 +147,32 @@ export default async function EventDetailPage({
       {(leaderboard || aw80dLeaderboard) && (
         <Container className="pb-5" style={{ maxWidth: 1100 }}>
           <hr className="mb-4" />
-          <h2 className="h4 fw-bold mb-4">Event Leaderboard</h2>
+          <div className="d-flex align-items-center flex-wrap gap-3 mb-4">
+            <h2 className="h4 fw-bold mb-0">Event Leaderboard</h2>
+            {isLive && (
+              <>
+                <Badge
+                  bg="danger"
+                  className="d-inline-flex align-items-center gap-1 fw-medium"
+                  style={{ animation: "cng-live-pulse 2s ease-in-out infinite" }}
+                >
+                  <span
+                    className="rounded-circle bg-white d-inline-block"
+                    style={{ width: 6, height: 6 }}
+                    aria-hidden
+                  />
+                  Live
+                </Badge>
+                <span className="text-muted fw-medium">Day {eventDayNumber}</span>
+                <style>{`
+                  @keyframes cng-live-pulse {
+                    0%, 100% { opacity: 1; }
+                    50% { opacity: 0.6; }
+                  }
+                `}</style>
+              </>
+            )}
+          </div>
           {/* Trial-mode banner — pairs with rider-metrics.ts's TRIAL_LOOKBACK_MS
               widening the window before the official start. Disappears on its
               own once `now` passes event.startDate, no manual removal needed. */}

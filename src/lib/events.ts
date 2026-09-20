@@ -91,14 +91,48 @@ async function getPublishedEventCards(): Promise<EventCard[]> {
     .filter((event) => event.startDate && event.endDate);
 }
 
-/** Whether an event's end date is still in the future. */
-export function isEventUpcoming(event: Pick<EventCard, "endDate">): boolean {
-  return new Date(event.endDate).getTime() >= Date.now();
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+// Every rider — and every event's start/end date — is in India. Those dates
+// come from a plain HTML `<input type="date">` in the admin form (see
+// EventFormModal.tsx), stored as a bare "YYYY-MM-DD" string with no
+// timezone. `new Date("YYYY-MM-DD")` parses that per the ISO 8601 spec as
+// UTC midnight, which is 5:30am IST — so comparing it straight against
+// `Date.now()` makes an event that has already started in India (any time
+// before 5:30am on its start date) still look like it hasn't started yet.
+// This reinterprets the same calendar date as IST midnight instead.
+function istMidnight(dateOnly: string): number {
+  const d = new Date(dateOnly);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - IST_OFFSET_MS;
 }
 
-/** Whether an event's start date hasn't arrived yet. */
+/** Whether an event's end date is still in the future — true through the entire end date, IST. */
+export function isEventUpcoming(event: Pick<EventCard, "endDate">): boolean {
+  return istMidnight(event.endDate) + ONE_DAY_MS > Date.now();
+}
+
+/** Whether an event's start date hasn't arrived yet, IST. */
 export function isEventNotYetStarted(event: Pick<EventCard, "startDate">): boolean {
-  return new Date(event.startDate).getTime() > Date.now();
+  return istMidnight(event.startDate) > Date.now();
+}
+
+/** Whether an event is currently in progress — started, but not yet ended. */
+export function isEventLive(event: Pick<EventCard, "startDate" | "endDate">): boolean {
+  return !isEventNotYetStarted(event) && isEventUpcoming(event);
+}
+
+/**
+ * Which day of a live, multi-day event "today" is — 1-indexed and clamped
+ * to the event's actual span, so it reads "Day 1" the moment the event
+ * starts (IST) and never counts past the event's last day. Meant to be
+ * paired with isEventLive(); calling it on an event that hasn't started yet
+ * returns 1, and no clamping is applied for one already over.
+ */
+export function getEventDayNumber(event: Pick<EventCard, "startDate" | "endDate">): number {
+  const totalDays = Math.round((istMidnight(event.endDate) - istMidnight(event.startDate)) / ONE_DAY_MS) + 1;
+  const elapsedDays = Math.floor((Date.now() - istMidnight(event.startDate)) / ONE_DAY_MS) + 1;
+  return Math.min(Math.max(elapsedDays, 1), totalDays);
 }
 
 /**
@@ -109,20 +143,18 @@ export function isEventNotYetStarted(event: Pick<EventCard, "startDate">): boole
  * actually upcoming."
  */
 export async function getUpcomingEvents(limit = 3): Promise<EventCard[]> {
-  const now = Date.now();
   const cards = await getPublishedEventCards();
   return cards
-    .filter((event) => new Date(event.endDate).getTime() >= now)
+    .filter(isEventUpcoming)
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
     .slice(0, limit);
 }
 
 /** Past events, most recently ended first — end date already in the past. */
 export async function getPastEvents(limit = 5): Promise<EventCard[]> {
-  const now = Date.now();
   const cards = await getPublishedEventCards();
   return cards
-    .filter((event) => new Date(event.endDate).getTime() < now)
+    .filter((event) => !isEventUpcoming(event))
     .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())
     .slice(0, limit);
 }
