@@ -53,7 +53,11 @@ function normalizeName(raw: string): string {
 // value instead of fragmenting into 2-3 near-duplicates in any city-based
 // stat. Doesn't fix genuine spelling variants (e.g. "Bombay" vs "Mumbai"),
 // only case.
-function normalizeCity(raw: string): string {
+// Exported for rider-metrics.ts's leaderboard, which pulls city from
+// sources this sync doesn't touch too (Strava's own athlete.city is never
+// normalized, and rows synced before this normalization existed) — same
+// casing fix applied defensively at display time, not just at sync time.
+export function normalizeCity(raw: string): string {
   const trimmed = raw.trim().replace(/\s+/g, " ");
   return trimmed ? titleCase(trimmed) : "";
 }

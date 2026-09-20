@@ -283,9 +283,9 @@ export default function EventLeaderboard({
                                   />
                                 )}
                               </div>
-                              {rider.city && (
+                              {(rider.city || rider.state) && (
                                 <div className="text-muted" style={{ fontSize: 12 }}>
-                                  {rider.city}
+                                  {[rider.city, rider.state].filter(Boolean).join(", ")}
                                 </div>
                               )}
                             </div>

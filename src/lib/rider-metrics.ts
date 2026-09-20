@@ -1,7 +1,9 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import type { EventCard } from "@/lib/models/event";
+import { getEventRegisteredRiders } from "@/lib/events";
 import { normalizeIndianState } from "@/lib/india-states";
+import { normalizeCity } from "@/lib/legacy-registrations";
 import {
   MILESTONES_KM,
   MILESTONE_QUOTAS,
@@ -169,28 +171,44 @@ function eventWindowMs(startDate: string, endDate: string): { start: number; end
 export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
   const { start, end } = eventWindowMs(event.startDate, event.endDate);
 
-  const [ridesSnapshot, ridersSnapshot, tokensSnapshot] = await Promise.all([
+  const [ridesSnapshot, ridersSnapshot, tokensSnapshot, registeredRiders] = await Promise.all([
     adminDb.collection(RIDES_COLLECTION).get(),
     adminDb.collection(RIDERS_COLLECTION).get(),
     adminDb.collection(ATHLETE_TOKENS_COLLECTION).get(),
+    getEventRegisteredRiders(event.id),
   ]);
 
-  // Lower-priority sources first, so the athlete_tokens loop below
-  // overwrites them — tokens are the more complete/reliable source and the
-  // only one with a profile photo.
+  // City/state/photo: lowest priority first (this event's own registration
+  // data, so even a registrant with no `riders`/`athelete_tokens` entry at
+  // all still gets *something*), then the legacy `riders` collection, then
+  // athelete_tokens last (most complete/reliable source, and the only one
+  // with a profile photo) — each loop below overwrites the previous.
+  //
+  // Name is different: registration data wins there, applied last and
+  // unconditionally, regardless of what Strava has on file — the admin's
+  // "Current Riders" list (registration sync) is the name people expect to
+  // see, and a rider's Strava display name can legitimately differ (a
+  // nickname, a different transliteration, etc.) without that being wrong.
   const nameByPhone = new Map<string, string>();
   const cityByPhone = new Map<string, string>();
+  const stateByPhone = new Map<string, string>();
+  const photoByPhone = new Map<string, string>();
+  registeredRiders.forEach((rider) => {
+    if (!rider.phone) return;
+    if (rider.city) cityByPhone.set(rider.phone, normalizeCity(rider.city));
+    const registeredState = normalizeIndianState(rider.state);
+    if (registeredState) stateByPhone.set(rider.phone, registeredState);
+    if (rider.profile) photoByPhone.set(rider.phone, rider.profile);
+  });
   ridersSnapshot.docs.forEach((doc) => {
     const data = doc.data();
     if (data.phone && data.name) {
       nameByPhone.set(String(data.phone), data.name);
     }
     if (data.phone && data.city) {
-      cityByPhone.set(String(data.phone), String(data.city).trim());
+      cityByPhone.set(String(data.phone), normalizeCity(String(data.city)));
     }
   });
-  const photoByPhone = new Map<string, string>();
-  const stateByPhone = new Map<string, string>();
   const sexByPhone = new Map<string, "M" | "F">();
   tokensSnapshot.docs.forEach((doc) => {
     const athlete = doc.data().athlete;
@@ -203,7 +221,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       nameByPhone.set(phone, fullName);
     }
     if (athlete.city) {
-      cityByPhone.set(phone, String(athlete.city).trim());
+      cityByPhone.set(phone, normalizeCity(String(athlete.city)));
     }
     if (athlete.profile_medium) {
       photoByPhone.set(phone, athlete.profile_medium);
@@ -214,6 +232,11 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     }
     if (athlete.sex === "M" || athlete.sex === "F") {
       sexByPhone.set(phone, athlete.sex);
+    }
+  });
+  registeredRiders.forEach((rider) => {
+    if (rider.phone && rider.full_name) {
+      nameByPhone.set(rider.phone, rider.full_name);
     }
   });
 
@@ -324,6 +347,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       phone,
       name,
       city,
+      state,
       photoUrl: photoByPhone.get(phone) ?? null,
       milestoneCounts,
       milestoneAchieved,
@@ -336,14 +360,50 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     });
   });
 
+  // "Qualifiers" means riders with at least one real qualifying ride —
+  // captured before the zero-ride registrants below are appended, so this
+  // stat doesn't just become "everyone registered".
+  const totalQualifiers = metrics.length;
+
+  // Every other registered rider still shows up on the table, just with
+  // all-zero stats, instead of being invisible until their first synced
+  // ride — city/state/gender aggregates above are untouched by these
+  // (0 contributes nothing to a sum, and "N riders from X" should mean N
+  // riders who've actually ridden, not N who signed up).
+  const seenPhones = new Set(metrics.map((m) => m.phone));
+  registeredRiders.forEach((rider) => {
+    if (!rider.phone || seenPhones.has(rider.phone)) {
+      return;
+    }
+    seenPhones.add(rider.phone);
+    metrics.push({
+      phone: rider.phone,
+      name: nameByPhone.get(rider.phone) ?? rider.full_name ?? `Rider ${rider.phone}`,
+      city: cityByPhone.get(rider.phone) ?? null,
+      state: stateByPhone.get(rider.phone) ?? null,
+      photoUrl: photoByPhone.get(rider.phone) ?? null,
+      milestoneCounts: { 25: 0, 50: 0, 75: 0, 100: 0, 150: 0 },
+      milestoneAchieved: { 25: false, 50: false, 75: false, 100: false, 150: false },
+      totalRides: 0,
+      totalDistanceKm: 0,
+      isFinisher: false,
+      progressPercent: event.targetDistanceKm ? 0 : null,
+    });
+  });
+
   // Riders who've completed the full quota rank above everyone else,
   // regardless of distance — being "qualified" matters more than raw
-  // distance for this event's ranking. Within each group, sort by distance.
+  // distance for this event's ranking. Within each group, sort by distance,
+  // then name (stable tie-break — matters most for the 0-distance riders
+  // above, which would otherwise sort in registration order).
   metrics.sort((a, b) => {
     if (a.isFinisher !== b.isFinisher) {
       return a.isFinisher ? -1 : 1;
     }
-    return b.totalDistanceKm - a.totalDistanceKm;
+    if (a.totalDistanceKm !== b.totalDistanceKm) {
+      return b.totalDistanceKm - a.totalDistanceKm;
+    }
+    return a.name.localeCompare(b.name);
   });
 
   const topByDistance = (stats: Map<string, PlaceStat>, count: number) =>
@@ -351,7 +411,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
 
   return {
     riders: metrics.slice(0, limit),
-    totalQualifiers: metrics.length,
+    totalQualifiers,
     totalDistanceKm: metrics.reduce((sum, m) => sum + m.totalDistanceKm, 0),
     totalRides: metrics.reduce((sum, m) => sum + m.totalRides, 0),
     finisherCount: metrics.filter((m) => m.isFinisher).length,

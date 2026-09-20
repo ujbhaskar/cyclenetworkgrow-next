@@ -236,6 +236,22 @@ export type EventRider = {
   profile?: string;
 };
 
+/**
+ * Registration list for one event, WITH phone — internal/server-side use
+ * only (rider-metrics.ts uses this to show every registered rider on the
+ * leaderboard, including ones with zero qualifying rides yet). Never
+ * return this shape to the client directly; getPublicEventRiders is the
+ * public-safe equivalent.
+ */
+export async function getEventRegisteredRiders(id: string): Promise<EventRider[]> {
+  const doc = await adminDb.collection(EVENTS_COLLECTION).doc(id).get();
+  if (!doc.exists) {
+    return [];
+  }
+  const data = doc.data() as EventDoc;
+  return Object.values((data.riders as Record<string, EventRider>) ?? {});
+}
+
 /** One event's full admin detail, including its decoded image/rules URLs
  * (for editing) and riders list (for the registration-sync sub-page). */
 export async function getEventAdminDetail(

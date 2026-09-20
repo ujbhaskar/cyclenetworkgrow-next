@@ -43,6 +43,7 @@ const ADMIN_NAV: AdminNavSection[] = [
     items: [
       { href: "/admin/audit-log", label: "Audit Log", icon: "bi-journal-text" },
       { href: "/admin/api-docs", label: "API Docs", icon: "bi-code-slash" },
+      { href: "/admin/deploys", label: "Deploys", icon: "bi-cloud-arrow-up" },
     ],
   },
 ];

@@ -35,6 +35,7 @@ export type RiderMetric = {
   phone: string;
   name: string;
   city: string | null;
+  state: string | null;
   photoUrl: string | null;
   milestoneCounts: Record<MilestoneKm, number>;
   // Per-bracket: milestoneCounts[m] >= MILESTONE_QUOTAS[m] — that single
