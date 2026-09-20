@@ -58,7 +58,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <div className="d-flex" style={{ minHeight: "100dvh" }}>
       <AdminNav sections={ADMIN_NAV} adminName={profile?.displayName ?? "Admin"} />
-      <main className="flex-grow-1 p-4" style={{ backgroundColor: "#f4f6f8" }}>
+      {/* Extra top clearance on mobile only, clear of the fixed hamburger
+          toggle AdminNav renders there — back to the normal p-4 at lg+
+          where that toggle doesn't exist. */}
+      <main className="flex-grow-1 p-4 pt-5 pt-lg-4" style={{ backgroundColor: "#f4f6f8" }}>
         {children}
       </main>
     </div>

@@ -72,7 +72,7 @@ export default function UsersTable({
 
       {error && <Alert variant="danger">{error}</Alert>}
 
-      <Table responsive hover>
+      <Table responsive hover className="table table-striped">
         <thead>
           <tr>
             <th>Name</th>
@@ -86,7 +86,7 @@ export default function UsersTable({
         <tbody>
           {users.map((user) => (
             <tr key={user.uid}>
-              <td>{user.displayName}</td>
+              <td className="text-nowrap">{user.displayName}</td>
               <td>{user.email ?? "—"}</td>
               <td>{user.phone ?? "—"}</td>
               <td>

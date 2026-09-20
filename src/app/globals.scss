@@ -19,6 +19,14 @@ $btn-border-radius: 0;
 $btn-border-radius-sm: 0;
 $btn-border-radius-lg: 0;
 
+// Same flat treatment for text inputs, selects, and input-group addons
+// (the icon/eye-toggle spans and buttons bracketing a Form.Control) — these
+// default to Bootstrap's own rounded corners independently of $btn-*
+// above, which only covers standalone .btn elements.
+$input-border-radius: 0;
+$input-border-radius-sm: 0;
+$input-border-radius-lg: 0;
+
 // Header/body font pair from docs/design/screenshots/Home-1.png — the actual
 // font files load via next/font/google in layout.tsx, which exposes them as
 // these CSS custom properties.

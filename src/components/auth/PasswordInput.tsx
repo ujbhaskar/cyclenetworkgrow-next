@@ -13,6 +13,7 @@ export default function PasswordInput({
   required,
   disabled,
   icon,
+  error,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -21,13 +22,16 @@ export default function PasswordInput({
   required?: boolean;
   disabled?: boolean;
   icon?: string;
+  /** Shown below the field, and marks it red — caller owns the validation
+   * logic (this component just renders whatever it's given). */
+  error?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
   return (
     <Form.Group className="mb-3">
       <Form.Label>{label}</Form.Label>
-      <InputGroup>
+      <InputGroup hasValidation>
         {icon && (
           <InputGroup.Text>
             <i className={`bi ${icon}`} aria-hidden />
@@ -40,6 +44,7 @@ export default function PasswordInput({
           minLength={minLength}
           required={required}
           disabled={disabled}
+          isInvalid={Boolean(error)}
         />
         <Button
           variant="outline-secondary"
@@ -51,6 +56,11 @@ export default function PasswordInput({
           <i className={`bi ${visible ? "bi-eye-slash" : "bi-eye"}`} aria-hidden />
         </Button>
       </InputGroup>
+      {/* .input-group is a flex container, so a full-width message belongs
+          outside it (Bootstrap's own documented pattern for InputGroup
+          validation) rather than as a flex item squeezed among the input
+          segments. */}
+      {error && <div className="invalid-feedback d-block">{error}</div>}
     </Form.Group>
   );
 }

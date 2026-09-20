@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -16,27 +17,111 @@ export default function AdminNav({
   adminName: string;
 }) {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  // Close the mobile drawer automatically once a link is followed — without
+  // this it'd stay open over the new page underneath it. Adjusting state
+  // during render (React's documented pattern for "reset state when a prop
+  // changes") rather than in an effect, which would cause an extra render.
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setOpen(false);
+  }
 
   return (
-    <nav
-      className="d-flex flex-column flex-shrink-0 text-light"
-      style={{ width: 260, backgroundColor: "#12181f" }}
-    >
-      <Link href="/" className="d-flex align-items-center gap-2 px-3 py-3 text-decoration-none border-bottom border-secondary border-opacity-25">
-        <Image
-          src="/logo.png"
-          alt="Cycle Network Grow"
-          width={32}
-          height={32}
-          style={{ height: 28, width: "auto", filter: "brightness(0) invert(1)" }}
+    <>
+      <style>{`
+        .admin-nav-toggle {
+          position: fixed;
+          top: 12px;
+          left: 12px;
+          z-index: 1060;
+          border: 0;
+          background: #12181f;
+          color: #fff;
+          width: 40px;
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .admin-nav-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 1050;
+        }
+        .admin-nav {
+          position: fixed;
+          top: 0;
+          left: 0;
+          height: 100dvh;
+          z-index: 1055;
+          transform: translateX(-100%);
+          transition: transform 0.25s ease;
+        }
+        .admin-nav.admin-nav-open {
+          transform: translateX(0);
+        }
+        @media (min-width: 992px) {
+          .admin-nav-toggle,
+          .admin-nav-backdrop {
+            display: none;
+          }
+          .admin-nav {
+            position: static;
+            height: auto;
+            transform: none;
+            transition: none;
+          }
+        }
+      `}</style>
+
+      <button
+        type="button"
+        className="admin-nav-toggle d-lg-none"
+        onClick={() => setOpen(true)}
+        aria-label="Open admin menu"
+        aria-expanded={open}
+      >
+        <i className="bi bi-list" style={{ fontSize: 22 }} aria-hidden />
+      </button>
+
+      {open && (
+        <div
+          className="admin-nav-backdrop d-lg-none"
+          onClick={() => setOpen(false)}
+          role="presentation"
         />
-        <div>
-          <div className="fw-semibold text-light small">Admin Panel</div>
-          <div className="text-light text-opacity-50" style={{ fontSize: 11 }}>
-            {adminName}
+      )}
+
+      <nav
+        className={`admin-nav d-flex flex-column flex-shrink-0 text-light ${open ? "admin-nav-open" : ""}`}
+        style={{ width: 260, backgroundColor: "#12181f" }}
+      >
+      <div className="d-flex align-items-center border-bottom border-secondary border-opacity-25">
+        <Link href="/" className="d-flex align-items-center gap-2 px-3 py-3 text-decoration-none flex-grow-1">
+          <Image
+            src="/logo.png"
+            alt="Cycle Network Grow"
+            width={32}
+            height={32}
+            style={{ height: 28, width: "auto", filter: "brightness(0) invert(1)" }}
+          />
+          <div>
+            <div className="fw-semibold text-light small">Admin Panel</div>
+            <div className="text-light text-opacity-50" style={{ fontSize: 11 }}>
+              {adminName}
+            </div>
           </div>
-        </div>
-      </Link>
+        </Link>
+        <button
+          type="button"
+          className="btn-close btn-close-white d-lg-none me-3"
+          onClick={() => setOpen(false)}
+          aria-label="Close admin menu"
+        />
+      </div>
 
       <div className="flex-grow-1 overflow-auto py-2">
         {sections.map((section) => (
@@ -82,6 +167,7 @@ export default function AdminNav({
           className="w-100 d-flex align-items-center justify-content-center gap-2"
         />
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }

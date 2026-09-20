@@ -38,7 +38,7 @@ export default function ImpersonateButton({ uid, disabled }: { uid: string; disa
 
   return (
     <>
-      <Button size="sm" variant="outline-secondary" onClick={handleImpersonate} disabled={disabled || pending}>
+      <Button size="sm" className="text-nowrap" variant="outline-secondary" onClick={handleImpersonate} disabled={disabled || pending}>
         {pending ? "Switching…" : "Log in as"}
       </Button>
       {error && <div className="text-danger small mt-1">{error}</div>}

@@ -237,81 +237,79 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
 
       {activities.length > 0 && (
         <div>
-          <div className="d-flex justify-content-between align-items-center mb-2">
-            <div>Fetched activities:</div>
+          <div className="d-flex flex-wrap align-items-center gap-3 mb-2">
             <Button onClick={handleSync} disabled={syncing || selected.size === 0}>
               {syncing ? "Syncing…" : `Sync Selected (${selected.size}) with CNG DB`}
             </Button>
+            <div>Fetched activities:</div>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <Table striped bordered hover size="sm" className="text-center align-middle">
-              <thead>
-                <tr>
-                  <th>
-                    <Form.Check
-                      type="checkbox"
-                      checked={selected.size === activities.length}
-                      onChange={(e) => setSelected(e.target.checked ? new Set(activities.map((a) => a.id)) : new Set())}
-                    />
-                  </th>
-                  <th>SN.</th>
-                  <th>Activity</th>
-                  <th>Distance (km)</th>
-                  <th>Virtual/Trainer?</th>
-                  <th>Elevation (m)</th>
-                  <th>Moving Time</th>
-                  <th>Elapsed Time</th>
-                  <th>Elapsed/Moving</th>
-                  <th>Flagged</th>
-                  <th>Start Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activities.map((activity, index) => {
-                  const ratio = activity.movingTime > 0 ? activity.elapsedTime / activity.movingTime : null;
-                  const isVirtual = activity.type === "VirtualRide" || activity.trainer;
-                  const overRatioLimit = ratio !== null && ratio > rideRules.elapsedToMovingRatioMax;
-                  const overVirtualDistanceLimit = isVirtual && activity.distanceKm > rideRules.maxVirtualRideDistanceKm;
-                  return (
-                    <tr key={activity.id}>
-                      <td>
-                        <Form.Check
-                          type="checkbox"
-                          className="d-flex justify-content-center"
-                          checked={selected.has(activity.id)}
-                          onChange={(e) => toggle(activity.id, e.target.checked)}
-                        />
-                      </td>
-                      <td>{index + 1}</td>
-                      <td>
-                        <a
-                          href={`https://www.strava.com/activities/${activity.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {activity.name || activity.id}
-                        </a>
-                      </td>
-                      {/* Flagged when a virtual/trainer ride exceeds the admin-configured max distance. */}
-                      <td className={overVirtualDistanceLimit ? "text-danger fw-semibold" : ""}>
-                        {activity.distanceKm.toFixed(2)}
-                      </td>
-                      <td>{isVirtual ? "Yes" : "No"}</td>
-                      <td>{activity.elevationM.toLocaleString()}</td>
-                      <td>{formatDuration(activity.movingTime)}</td>
-                      {/* Flagged when elapsed time exceeds the admin-configured multiple of moving time (rules §7d). */}
-                      <td className={overRatioLimit ? "text-danger fw-semibold" : ""}>{formatDuration(activity.elapsedTime)}</td>
-                      <td className={overRatioLimit ? "text-danger fw-semibold" : ""}>
-                        {ratio !== null ? `${ratio.toFixed(2)}x` : "—"}
-                      </td>
-                      <td>{activity.flagged && <Badge bg="warning">Flagged</Badge>}</td>
-                      <td>{new Date(activity.startDate).toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </Table>
-          </div>
+          <Table responsive striped bordered hover size="sm" className="text-center align-middle">
+            <thead>
+              <tr>
+                <th>
+                  <Form.Check
+                    type="checkbox"
+                    checked={selected.size === activities.length}
+                    onChange={(e) => setSelected(e.target.checked ? new Set(activities.map((a) => a.id)) : new Set())}
+                  />
+                </th>
+                <th>SN.</th>
+                <th>Activity</th>
+                <th>Distance (km)</th>
+                <th>Virtual/Trainer?</th>
+                <th>Elevation (m)</th>
+                <th>Moving Time</th>
+                <th>Elapsed Time</th>
+                <th>Elapsed/Moving</th>
+                <th>Flagged</th>
+                <th>Start Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {activities.map((activity, index) => {
+                const ratio = activity.movingTime > 0 ? activity.elapsedTime / activity.movingTime : null;
+                const isVirtual = activity.type === "VirtualRide" || activity.trainer;
+                const overRatioLimit = ratio !== null && ratio > rideRules.elapsedToMovingRatioMax;
+                const overVirtualDistanceLimit = isVirtual && activity.distanceKm > rideRules.maxVirtualRideDistanceKm;
+                return (
+                  <tr key={activity.id}>
+                    <td>
+                      <Form.Check
+                        type="checkbox"
+                        className="d-flex justify-content-center"
+                        checked={selected.has(activity.id)}
+                        onChange={(e) => toggle(activity.id, e.target.checked)}
+                      />
+                    </td>
+                    <td>{index + 1}</td>
+                    <td>
+                      <a
+                        href={`https://www.strava.com/activities/${activity.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {activity.name || activity.id}
+                      </a>
+                    </td>
+                    {/* Flagged when a virtual/trainer ride exceeds the admin-configured max distance. */}
+                    <td className={overVirtualDistanceLimit ? "text-danger fw-semibold" : ""}>
+                      {activity.distanceKm.toFixed(2)}
+                    </td>
+                    <td>{isVirtual ? "Yes" : "No"}</td>
+                    <td>{activity.elevationM.toLocaleString()}</td>
+                    <td>{formatDuration(activity.movingTime)}</td>
+                    {/* Flagged when elapsed time exceeds the admin-configured multiple of moving time (rules §7d). */}
+                    <td className={overRatioLimit ? "text-danger fw-semibold" : ""}>{formatDuration(activity.elapsedTime)}</td>
+                    <td className={overRatioLimit ? "text-danger fw-semibold" : ""}>
+                      {ratio !== null ? `${ratio.toFixed(2)}x` : "—"}
+                    </td>
+                    <td>{activity.flagged && <Badge bg="warning">Flagged</Badge>}</td>
+                    <td>{new Date(activity.startDate).toLocaleString()}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </Table>
         </div>
       )}
 

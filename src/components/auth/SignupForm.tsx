@@ -11,7 +11,22 @@ import { auth } from "@/lib/firebase/client";
 import { establishSession } from "@/lib/auth/establish-session";
 import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE } from "@/lib/auth/phone";
 import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
+import { PINCODE_PATTERN } from "@/lib/models/user";
 import PasswordInput from "./PasswordInput";
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldErrors = {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+};
 
 export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }) {
   const router = useRouter();
@@ -29,11 +44,50 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
+
+  function clearFieldError(field: keyof FieldErrors) {
+    setFieldErrors((f) => (f[field] ? { ...f, [field]: undefined } : f));
+  }
+
+  function validate(): boolean {
+    const errors: FieldErrors = {};
+    if (!firstName.trim()) errors.firstName = "Enter your first name.";
+    if (!lastName.trim()) errors.lastName = "Enter your last name.";
+    if (!email.trim()) {
+      errors.email = "Enter your email address.";
+    } else if (!EMAIL_PATTERN.test(email.trim())) {
+      errors.email = "That email address isn't valid.";
+    }
+    if (!phone) {
+      errors.phone = "Enter your phone number.";
+    } else if (phone.length !== 10) {
+      errors.phone = "Phone number must be 10 digits.";
+    }
+    if (!password) {
+      errors.password = "Create a password.";
+    } else if (password.length < 6) {
+      errors.password = "Password must be at least 6 characters.";
+    }
+    if (!address.trim()) errors.address = "Enter your address.";
+    if (!city.trim()) errors.city = "Enter your city.";
+    if (!state) errors.state = "Select your state.";
+    if (!pincode) {
+      errors.pincode = "Enter your PIN code.";
+    } else if (!PINCODE_PATTERN.test(pincode)) {
+      errors.pincode = "PIN code must be 6 digits.";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!validate()) {
+      return;
+    }
     setPending(true);
     try {
       const fullPhone = `${countryCode}${phone}`;
@@ -68,41 +122,61 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
 
   return (
     <>
-      <Form onSubmit={handleSubmit}>
+      <Form onSubmit={handleSubmit} noValidate>
         <div className="row g-3 mb-3">
           <div className="col-sm-6">
             <Form.Group>
               <Form.Label>First name</Form.Label>
-              <Form.Control value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+              <Form.Control
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  clearFieldError("firstName");
+                }}
+                isInvalid={Boolean(fieldErrors.firstName)}
+              />
+              <Form.Control.Feedback type="invalid">{fieldErrors.firstName}</Form.Control.Feedback>
             </Form.Group>
           </div>
           <div className="col-sm-6">
             <Form.Group>
               <Form.Label>Last name</Form.Label>
-              <Form.Control value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+              <Form.Control
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  clearFieldError("lastName");
+                }}
+                isInvalid={Boolean(fieldErrors.lastName)}
+              />
+              <Form.Control.Feedback type="invalid">{fieldErrors.lastName}</Form.Control.Feedback>
             </Form.Group>
           </div>
         </div>
 
         <Form.Group className="mb-3">
           <Form.Label>Email address</Form.Label>
-          <InputGroup>
+          <InputGroup hasValidation>
             <InputGroup.Text>
               <i className="bi bi-envelope" aria-hidden />
             </InputGroup.Text>
             <Form.Control
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                clearFieldError("email");
+              }}
               placeholder="rider@letscng.com"
-              required
+              isInvalid={Boolean(fieldErrors.email)}
             />
           </InputGroup>
+          {fieldErrors.email && <div className="invalid-feedback d-block">{fieldErrors.email}</div>}
         </Form.Group>
 
         <Form.Group className="mb-3">
           <Form.Label>Phone number</Form.Label>
-          <InputGroup>
+          <InputGroup hasValidation>
             <Form.Select
               value={countryCode}
               onChange={(e) => setCountryCode(e.target.value)}
@@ -118,33 +192,68 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
               type="tel"
               inputMode="numeric"
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              onChange={(e) => {
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                clearFieldError("phone");
+              }}
               placeholder="98765 43210"
-              pattern="[0-9]{10}"
               maxLength={10}
-              required
+              isInvalid={Boolean(fieldErrors.phone)}
             />
           </InputGroup>
+          {fieldErrors.phone && <div className="invalid-feedback d-block">{fieldErrors.phone}</div>}
         </Form.Group>
 
-        <PasswordInput value={password} onChange={setPassword} minLength={6} required icon="bi-lock" />
+        <PasswordInput
+          value={password}
+          onChange={(v) => {
+            setPassword(v);
+            clearFieldError("password");
+          }}
+          minLength={6}
+          icon="bi-lock"
+          error={fieldErrors.password}
+        />
 
         <Form.Group className="mb-3">
           <Form.Label>Address</Form.Label>
-          <Form.Control value={address} onChange={(e) => setAddress(e.target.value)} required />
+          <Form.Control
+            value={address}
+            onChange={(e) => {
+              setAddress(e.target.value);
+              clearFieldError("address");
+            }}
+            isInvalid={Boolean(fieldErrors.address)}
+          />
+          <Form.Control.Feedback type="invalid">{fieldErrors.address}</Form.Control.Feedback>
         </Form.Group>
 
         <div className="row g-3 mb-3">
           <div className="col-sm-5">
             <Form.Group>
-              <Form.Label>City (optional)</Form.Label>
-              <Form.Control value={city} onChange={(e) => setCity(e.target.value)} />
+              <Form.Label>City</Form.Label>
+              <Form.Control
+                value={city}
+                onChange={(e) => {
+                  setCity(e.target.value);
+                  clearFieldError("city");
+                }}
+                isInvalid={Boolean(fieldErrors.city)}
+              />
+              <Form.Control.Feedback type="invalid">{fieldErrors.city}</Form.Control.Feedback>
             </Form.Group>
           </div>
           <div className="col-sm-4">
             <Form.Group>
-              <Form.Label>State (optional)</Form.Label>
-              <Form.Select value={state} onChange={(e) => setState(e.target.value)}>
+              <Form.Label>State</Form.Label>
+              <Form.Select
+                value={state}
+                onChange={(e) => {
+                  setState(e.target.value);
+                  clearFieldError("state");
+                }}
+                isInvalid={Boolean(fieldErrors.state)}
+              >
                 <option value="">Select…</option>
                 {INDIAN_STATES_AND_UTS.map((s) => (
                   <option key={s} value={s}>
@@ -152,19 +261,24 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
                   </option>
                 ))}
               </Form.Select>
+              <Form.Control.Feedback type="invalid">{fieldErrors.state}</Form.Control.Feedback>
             </Form.Group>
           </div>
           <div className="col-sm-3">
             <Form.Group>
-              <Form.Label>PIN code (optional)</Form.Label>
+              <Form.Label>PIN code</Form.Label>
               <Form.Control
                 inputMode="numeric"
                 value={pincode}
-                onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                onChange={(e) => {
+                  setPincode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  clearFieldError("pincode");
+                }}
                 placeholder="110001"
-                pattern="[1-9][0-9]{5}"
                 maxLength={6}
+                isInvalid={Boolean(fieldErrors.pincode)}
               />
+              <Form.Control.Feedback type="invalid">{fieldErrors.pincode}</Form.Control.Feedback>
             </Form.Group>
           </div>
         </div>

@@ -44,17 +44,35 @@ async function resolveToEmail(identifier: string): Promise<string> {
   return email;
 }
 
+type FieldErrors = { identifier?: string; password?: string };
+
 export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string }) {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
+
+  function validate(): boolean {
+    const errors: FieldErrors = {};
+    if (!identifier.trim()) {
+      errors.identifier = "Enter your email or phone number.";
+    }
+    if (!password) {
+      errors.password = "Enter your password.";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!validate()) {
+      return;
+    }
     setPending(true);
     try {
       const email = await resolveToEmail(identifier);
@@ -74,23 +92,38 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
 
   return (
     <>
-      <Form onSubmit={handleSubmit}>
+      <Form onSubmit={handleSubmit} noValidate>
         <Form.Group className="mb-3">
           <Form.Label>Email or phone number</Form.Label>
-          <InputGroup>
+          <InputGroup hasValidation>
             <InputGroup.Text>
               <i className="bi bi-person" aria-hidden />
             </InputGroup.Text>
             <Form.Control
               value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              onChange={(e) => {
+                setIdentifier(e.target.value);
+                if (fieldErrors.identifier) setFieldErrors((f) => ({ ...f, identifier: undefined }));
+              }}
               placeholder="rider@letscng.com or 98765 43210"
-              required
+              isInvalid={Boolean(fieldErrors.identifier)}
             />
           </InputGroup>
-          <Form.Text className="text-muted">10-digit phone number, no country code needed.</Form.Text>
+          {fieldErrors.identifier ? (
+            <div className="invalid-feedback d-block">{fieldErrors.identifier}</div>
+          ) : (
+            <Form.Text className="text-muted">10-digit phone number, no country code needed.</Form.Text>
+          )}
         </Form.Group>
-        <PasswordInput value={password} onChange={setPassword} required icon="bi-lock" />
+        <PasswordInput
+          value={password}
+          onChange={(v) => {
+            setPassword(v);
+            if (fieldErrors.password) setFieldErrors((f) => ({ ...f, password: undefined }));
+          }}
+          icon="bi-lock"
+          error={fieldErrors.password}
+        />
 
         <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <Form.Check
