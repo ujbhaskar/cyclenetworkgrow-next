@@ -2,19 +2,19 @@ import { requireRole } from "@/lib/auth/dal";
 import { getHomeHeroImageUrl, getReadyToRideBannerImageUrl } from "@/lib/site-settings";
 import { getHeroStats } from "@/lib/hero-stats";
 import { getSiteStats } from "@/lib/site-stats";
-import { getSiteAnnouncement } from "@/lib/site-announcement";
+import { listSiteAnnouncements } from "@/lib/site-announcement";
 import BannerUploadForm from "@/components/admin/BannerUploadForm";
 import HeroStatsForm from "@/components/admin/HeroStatsForm";
 import SiteAnnouncementForm from "@/components/admin/SiteAnnouncementForm";
 
 export default async function AdminHomeSectionsPage() {
   await requireRole("admin");
-  const [heroImageUrl, readyToRideImageUrl, heroStats, siteStats, announcement] = await Promise.all([
+  const [heroImageUrl, readyToRideImageUrl, heroStats, siteStats, announcements] = await Promise.all([
     getHomeHeroImageUrl(),
     getReadyToRideBannerImageUrl(),
     getHeroStats(),
     getSiteStats(),
-    getSiteAnnouncement(),
+    listSiteAnnouncements(),
   ]);
 
   return (
@@ -22,12 +22,13 @@ export default async function AdminHomeSectionsPage() {
       <h1 className="h3 mb-1">Home Page Sections</h1>
       <p className="text-muted mb-4">Manage the content shown on the public home page.</p>
 
-      <h2 className="h5 mb-3">Announcement Banner</h2>
+      <h2 className="h5 mb-3">Announcement Banners</h2>
       <p className="text-muted">
-        An optional message shown at the very top of the home page — e.g. a registration deadline
-        or a trial-mode notice. Off by default.
+        Scheduled messages shown near the top of the home page — plan several ahead of time (e.g.
+        one for a registration deadline, another for when the event starts), each with its own
+        start/expiry time. Only banners currently inside their window (and switched on) show up.
       </p>
-      <SiteAnnouncementForm announcement={announcement} />
+      <SiteAnnouncementForm announcements={announcements} />
 
       <hr className="my-4" />
 
