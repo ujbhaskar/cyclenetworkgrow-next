@@ -9,8 +9,6 @@ import Badge from "react-bootstrap/Badge";
 import type { CandidateActivity, RiderSearchResult } from "@/lib/admin-missing-rides";
 import type { RideRulesConfig } from "@/lib/models/ride-rules";
 
-const DEFAULT_START_DATE = "2026-04-03";
-
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -29,7 +27,7 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
   const [phone, setPhone] = useState("");
   const [athleteIdInput, setAthleteIdInput] = useState("");
   const [minDistanceKm, setMinDistanceKm] = useState(rideRules.minRideDistanceKm);
-  const [afterDate, setAfterDate] = useState(DEFAULT_START_DATE);
+  const [afterDate, setAfterDate] = useState(rideRules.missingRidesDefaultAfterDate);
 
   const [fetching, setFetching] = useState(false);
   const [syncing, setSyncing] = useState(false);

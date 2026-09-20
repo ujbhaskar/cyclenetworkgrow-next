@@ -45,6 +45,7 @@ export async function PUT(request: Request) {
   const elapsedToMovingRatioMax = Number(body?.elapsedToMovingRatioMax);
   const minRideDistanceKm = Number(body?.minRideDistanceKm);
   const maxVirtualRideDistanceKm = Number(body?.maxVirtualRideDistanceKm);
+  const missingRidesDefaultAfterDate = String(body?.missingRidesDefaultAfterDate ?? "");
 
   if (
     !Number.isFinite(elapsedToMovingRatioMax) ||
@@ -56,8 +57,11 @@ export async function PUT(request: Request) {
   ) {
     return Response.json({ error: "All three values must be positive numbers" }, { status: 400 });
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(missingRidesDefaultAfterDate)) {
+    return Response.json({ error: "Activities-after date must be a valid date" }, { status: 400 });
+  }
 
-  const config = { elapsedToMovingRatioMax, minRideDistanceKm, maxVirtualRideDistanceKm };
+  const config = { elapsedToMovingRatioMax, minRideDistanceKm, maxVirtualRideDistanceKm, missingRidesDefaultAfterDate };
   await updateRideRulesConfig(config, session.uid);
 
   await adminDb.collection("auditLog").add({

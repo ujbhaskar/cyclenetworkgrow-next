@@ -18,6 +18,10 @@ export default function RideRulesForm({ initialConfig }: { initialConfig: RideRu
     setConfig((current) => ({ ...current, [key]: Number(value) }));
   }
 
+  function setDate(value: string) {
+    setConfig((current) => ({ ...current, missingRidesDefaultAfterDate: value }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setPending(true);
@@ -100,6 +104,24 @@ export default function RideRulesForm({ initialConfig }: { initialConfig: RideRu
           <Col className="text-muted small">
             A single virtual/trainer ride longer than this is flagged for review in Missing Rides and Ride
             Flagging.
+          </Col>
+        </Row>
+      </Form.Group>
+
+      <Form.Group className="mb-4">
+        <Form.Label>Missing Rides — default &quot;Activities After&quot; date</Form.Label>
+        <Row className="align-items-center">
+          <Col xs={4}>
+            <Form.Control
+              type="date"
+              value={config.missingRidesDefaultAfterDate}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </Col>
+          <Col className="text-muted small">
+            Pre-fills the &quot;Activities After&quot; field on the Pull Missing Rides page, so admins don&apos;t have
+            to re-enter the event&apos;s start date every time.
           </Col>
         </Row>
       </Form.Group>

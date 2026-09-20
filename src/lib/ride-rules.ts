@@ -26,6 +26,10 @@ export async function getRideRulesConfig(): Promise<RideRulesConfig> {
       typeof data.maxVirtualRideDistanceKm === "number"
         ? data.maxVirtualRideDistanceKm
         : DEFAULT_RIDE_RULES.maxVirtualRideDistanceKm,
+    missingRidesDefaultAfterDate:
+      typeof data.missingRidesDefaultAfterDate === "string" && data.missingRidesDefaultAfterDate
+        ? data.missingRidesDefaultAfterDate
+        : DEFAULT_RIDE_RULES.missingRidesDefaultAfterDate,
   };
 }
 

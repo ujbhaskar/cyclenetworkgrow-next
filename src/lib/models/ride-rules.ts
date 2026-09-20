@@ -13,10 +13,15 @@ export type RideRulesConfig = {
   minRideDistanceKm: number;
   // A single virtual/trainer ride longer than this is flagged for review.
   maxVirtualRideDistanceKm: number;
+  // Default "Activities After" date (YYYY-MM-DD) pre-filled on the Pull
+  // Missing Rides page — was hardcoded in MissingRidesPanel.tsx before this
+  // field existed.
+  missingRidesDefaultAfterDate: string;
 };
 
 export const DEFAULT_RIDE_RULES: RideRulesConfig = {
   elapsedToMovingRatioMax: 3,
   minRideDistanceKm: 20,
   maxVirtualRideDistanceKm: 100,
+  missingRidesDefaultAfterDate: "2026-04-03",
 };
