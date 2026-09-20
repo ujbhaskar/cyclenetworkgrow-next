@@ -8,6 +8,7 @@ import EventLeaderboard from "@/components/events/EventLeaderboard";
 import Aw80dLeaderboard from "@/components/events/Aw80dLeaderboard";
 import EventBannerImage from "@/components/events/EventBannerImage";
 import TornPaperEdge from "@/components/TornPaperEdge";
+import AnnouncementBar from "@/components/AnnouncementBar";
 import { MILESTONES_KM, MILESTONE_QUOTAS } from "@/lib/models/rider-metric";
 
 // The 1×150/3×100/6×75/15×50/30×25KM quota-bracket system (and the
@@ -58,13 +59,9 @@ export default async function EventDetailPage({
         <TornPaperEdge fill="#ffffff" />
       </div>
 
-      <Container className="py-3" style={{ maxWidth: 1100 }}>
-        {event.bannerMessage && (
-          <div className="alert alert-warning" role="alert">
-            {event.bannerMessage}
-          </div>
-        )}
+      {event.bannerMessage && <AnnouncementBar message={event.bannerMessage} variant="warning" />}
 
+      <Container className="py-3" style={{ maxWidth: 1100 }}>
         <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start gap-2 mb-3">
           <h1 className="fw-bold mb-0">{event.name}</h1>
           <span className="text-nowrap text-danger">
