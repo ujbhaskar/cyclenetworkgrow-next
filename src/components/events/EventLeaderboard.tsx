@@ -271,6 +271,9 @@ export default function EventLeaderboard({
                     <tr>
                       <th>Rank</th>
                       <th>Rider</th>
+                      <th className="text-end text-nowrap" title="Rules §6 — Distance Points + Consistency/Endurance bonuses; ranking's actual sort key">
+                        Points
+                      </th>
                       {MILESTONES_KM.map((milestone) => (
                         <th key={milestone} className="text-center">
                           {milestone}KM
@@ -320,6 +323,9 @@ export default function EventLeaderboard({
                               )}
                             </div>
                           </div>
+                        </td>
+                        <td className="text-end fw-bold">
+                          {rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                         </td>
                         {MILESTONES_KM.map((milestone) => (
                           <td
@@ -414,42 +420,80 @@ export default function EventLeaderboard({
           {!loading && rides && rides.length === 0 && (
             <p className="text-muted mb-0">No qualifying rides found for this rider.</p>
           )}
-          {!loading && rides && rides.length > 0 && (
-            <div style={{ overflowX: "auto" }}>
-              <Table size="sm" hover>
-                <thead>
-                  <tr>
-                    <th>S/N</th>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th className="text-end">Distance</th>
-                    <th className="text-center">Bracket</th>
-                    <th className="text-center">Strava</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rides.map((ride, index) => (
-                    <tr key={ride.activityId}>
-                      <td>{index + 1}</td>
-                      <td className="text-nowrap">{new Date(ride.startDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</td>
-                      <td>{ride.type}</td>
-                      <td className="text-end">{ride.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</td>
-                      <td className="text-center">{ride.bracket ? `${ride.bracket}KM` : "–"}</td>
-                      <td className="text-center">
-                        <a
-                          href={`https://www.strava.com/activities/${ride.activityId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title="View this ride on Strava"
-                        >
-                          <i className="bi bi-box-arrow-up-right" aria-hidden />
-                        </a>
-                      </td>
+          {!loading && rides && rides.length > 0 && selectedRider && (
+            <>
+              <div style={{ overflowX: "auto" }}>
+                <Table size="sm" hover>
+                  <thead>
+                    <tr>
+                      <th>S/N</th>
+                      <th>Date</th>
+                      <th>Type</th>
+                      <th className="text-end">Distance</th>
+                      <th className="text-center">Bracket</th>
+                      <th className="text-end">Points</th>
+                      <th className="text-center">Strava</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {rides.map((ride, index) => (
+                      <tr key={ride.activityId}>
+                        <td>{index + 1}</td>
+                        <td className="text-nowrap">{new Date(ride.startDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</td>
+                        <td>
+                          {ride.type}
+                          {ride.isVirtual && (
+                            <span className="badge bg-secondary ms-1" title="Indoor rides earn 75% of the points (rules §6d)">
+                              Indoor
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-end">{ride.distanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })} km</td>
+                        <td className="text-center">{ride.bracket ? `${ride.bracket}KM` : "–"}</td>
+                        <td className="text-end fw-semibold">
+                          {ride.points.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="text-center">
+                          <a
+                            href={`https://www.strava.com/activities/${ride.activityId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View this ride on Strava"
+                          >
+                            <i className="bi bi-box-arrow-up-right" aria-hidden />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+
+              {/* Rules §6 — Distance Points (per-ride, summed above) plus the
+                  Consistency/Endurance streak bonuses (§6b/c), which aren't
+                  tied to any single ride so they're only shown as a total
+                  here, not a table row. */}
+              <div className="d-flex flex-wrap gap-4 border-top pt-3 mt-1">
+                <div>
+                  <div className="text-muted small">Distance Points</div>
+                  <div className="fw-semibold">
+                    {selectedRider.distancePoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted small">Bonus Points</div>
+                  <div className="fw-semibold">
+                    {selectedRider.bonusPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-muted small">Total Points</div>
+                  <div className="fw-bold text-success">
+                    {selectedRider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </ModalBody>
       </Modal>

@@ -8,6 +8,7 @@ import Alert from "react-bootstrap/Alert";
 import Badge from "react-bootstrap/Badge";
 import type { CandidateActivity, RiderSearchResult } from "@/lib/admin-missing-rides";
 import type { RideRulesConfig } from "@/lib/models/ride-rules";
+import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
 
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
@@ -20,6 +21,8 @@ function formatDuration(totalSeconds: number): string {
 
 export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesConfig }) {
   const [nameQuery, setNameQuery] = useState("");
+  const [locationQuery, setLocationQuery] = useState("");
+  const [stateQuery, setStateQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<RiderSearchResult[]>([]);
   const [selectedRider, setSelectedRider] = useState<RiderSearchResult | null>(null);
@@ -40,12 +43,16 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   async function handleSearch() {
-    if (!nameQuery.trim()) {
+    if (!nameQuery.trim() && !locationQuery.trim() && !stateQuery) {
       return;
     }
     setSearching(true);
     setError(null);
-    const res = await fetch(`/api/admin/rides/missing/search?q=${encodeURIComponent(nameQuery.trim())}`);
+    const params = new URLSearchParams();
+    if (nameQuery.trim()) params.set("q", nameQuery.trim());
+    if (locationQuery.trim()) params.set("location", locationQuery.trim());
+    if (stateQuery) params.set("state", stateQuery);
+    const res = await fetch(`/api/admin/rides/missing/search?${params}`);
     const body = await res.json().catch(() => ({ riders: [] }));
     setSearching(false);
     setSearchResults(body.riders ?? []);
@@ -56,6 +63,9 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
     setSearchResults([]);
     setPhone("");
     setAthleteIdInput("");
+    setNameQuery("");
+    setLocationQuery("");
+    setStateQuery("");
   }
 
   // Prefer a rider picked from name search; otherwise whichever manual
@@ -145,15 +155,39 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
     <div>
       <div className="bg-white border rounded p-3 mb-4" style={{ maxWidth: 480 }}>
         <Form.Group className="mb-2">
-          <Form.Label>Find Rider by Name</Form.Label>
-          <div className="d-flex gap-2">
+          <Form.Label>Find Rider</Form.Label>
+          <div className="d-flex flex-wrap gap-2">
             <Form.Control
               value={nameQuery}
               onChange={(e) => setNameQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              placeholder="e.g. Nishant Patel"
+              placeholder="Name, e.g. Nishant Patel"
+              style={{ minWidth: 160, flex: 1 }}
             />
-            <Button variant="outline-primary" onClick={handleSearch} disabled={searching || !nameQuery.trim()}>
+            <Form.Control
+              value={locationQuery}
+              onChange={(e) => setLocationQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Location, e.g. Kolkata"
+              style={{ minWidth: 140, flex: 1 }}
+            />
+            <Form.Select
+              value={stateQuery}
+              onChange={(e) => setStateQuery(e.target.value)}
+              style={{ minWidth: 140, flex: 1 }}
+            >
+              <option value="">All states</option>
+              {INDIAN_STATES_AND_UTS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Form.Select>
+            <Button
+              variant="outline-primary"
+              onClick={handleSearch}
+              disabled={searching || (!nameQuery.trim() && !locationQuery.trim() && !stateQuery)}
+            >
               {searching ? "…" : "Search"}
             </Button>
           </div>

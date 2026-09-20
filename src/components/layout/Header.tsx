@@ -14,19 +14,19 @@ import type { NavLink } from "@/lib/models/nav-links";
 // configured in /admin/content/navigation.
 const ADMIN_NAV_LINK = { href: "/admin/dashboard", label: "Admin" };
 
-// Event detail pages (/events/[slug]) have their own full-bleed banner
-// image right at the top, same as the home page hero — see
-// docs/design/screenshots/Home-1.png.
+// Used only for the "Events" nav-link active-state rule below — event
+// detail pages no longer get their own hero banner/overlay header (see
+// isHeroOverlayPage), just a plain solid header like every other page.
 function isEventDetailPage(pathname: string): boolean {
   return /^\/events\/[^/]+$/.test(pathname);
 }
 
-// Pages whose content starts with a full-bleed image right at the top — the
-// header overlays it transparently with light text instead of sitting in
-// its own bar above it. Every other page keeps the solid header, since
-// there's nothing behind it to overlay.
+// The only page whose content starts with a full-bleed image right at the
+// top — the header overlays it transparently with light text instead of
+// sitting in its own bar above it. Every other page keeps the solid header,
+// since there's nothing behind it to overlay.
 function isHeroOverlayPage(pathname: string): boolean {
-  return pathname === "/" || isEventDetailPage(pathname);
+  return pathname === "/";
 }
 
 // "Events" should read as active on the listing page AND any individual
@@ -58,7 +58,6 @@ export type HeaderUser = { displayName: string | null; role: Role };
 export default function Header({ user, navLinks }: { user: HeaderUser | null; navLinks: NavLink[] }) {
   const pathname = usePathname();
   const overlay = isHeroOverlayPage(pathname);
-  const eventDetail = isEventDetailPage(pathname);
   const links = user?.role === "admin" ? [...navLinks, ADMIN_NAV_LINK] : navLinks;
 
   return (
@@ -68,14 +67,7 @@ export default function Header({ user, navLinks }: { user: HeaderUser | null; na
       className={overlay ? "" : "border-bottom"}
       style={
         overlay
-          ? {
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 10,
-              backgroundColor: eventDetail ? "rgba(0,0,0,0.25)" : "transparent",
-            }
+          ? { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, backgroundColor: "transparent" }
           : { backgroundColor: "#fbfbf2" }
       }
       sticky={overlay ? undefined : "top"}

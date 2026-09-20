@@ -112,10 +112,11 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
     return { outcome: "discarded", reason: `Below the ${rules.minRideDistanceKm}km minimum (${distanceKm}km)` };
   }
 
-  let distance = activity.distance;
-  if (activity.type === "VirtualRide" || activity.trainer) {
-    distance = Math.min(distance, rules.maxVirtualRideDistanceKm * 1000);
-  }
+  // Rules PDF has no distance cap for virtual/trainer rides — only the
+  // 75% point adjustment (§6d) and the general elapsed/moving-time-ratio
+  // check apply to them, same as outdoor rides. Recorded as Strava reports
+  // it, uncapped.
+  const distance = activity.distance;
 
   await adminDb
     .collection(RIDES_COLLECTION)

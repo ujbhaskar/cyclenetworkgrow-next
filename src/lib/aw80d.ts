@@ -2,6 +2,7 @@ import "server-only";
 import { decompress, type Compressed } from "compress-json";
 import { adminDb } from "@/lib/firebase/admin";
 import { decodeLegacyStorageUrl } from "@/lib/events";
+import { toNumber } from "@/lib/legacy-activity";
 import type { Aw80dLeaderboardData, Aw80dMedal, Aw80dRider, Aw80dTeam, Aw80dVerificationRide } from "@/lib/models/aw80d";
 import type { QualifyingRide } from "@/lib/models/rider-metric";
 import aw80d2026Compressed from "@/lib/data/aw80d-2026-results.json";
@@ -82,15 +83,6 @@ type LegacyAw80dTeamEntry = {
   logo?: string;
 };
 
-function toNumber(value: unknown): number {
-  if (typeof value === "number") return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
-}
-
 function dayKey(iso: string): string {
   return iso.slice(0, 10); // "2026-04-03" — enough for a per-day grouping key
 }
@@ -123,6 +115,11 @@ function toQualifyingRide(activityId: string, activity: LegacyAw80dActivity, dis
     type: activity.type ?? "Ride",
     startDate: activity.start_date ?? "",
     bracket: null,
+    // AW80D has its own separate elevation-aware points/medal system (not
+    // rider-metrics.ts's 1177-specific point formula) — these two fields
+    // only have real meaning there, so they're inert here.
+    isVirtual: activity.type === "VirtualRide" || Boolean(activity.trainer),
+    points: 0,
   };
 }
 

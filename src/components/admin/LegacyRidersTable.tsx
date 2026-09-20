@@ -4,10 +4,25 @@ import { useMemo, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import type { EventRider } from "@/lib/events";
+import { normalizeCity, normalizeCasing, normalizeGender } from "@/lib/registration-normalize";
 
 type StravaFilter = "all" | "connected" | "unregistered";
 
 const ALL = "__all__";
+
+// This data is normally already normalized at sync time
+// (legacy-registrations.ts), but riders added some other way (manual entry,
+// a resync predating that normalization) can still have raw casing — same
+// defensive re-normalize-at-display-time pattern as UsersTable's filters.
+function riderCity(rider: EventRider): string {
+  return rider.city ? normalizeCity(rider.city) : "";
+}
+function riderState(rider: EventRider): string {
+  return rider.state ? normalizeCasing(rider.state) : "";
+}
+function riderGender(rider: EventRider): string {
+  return rider.gender ? normalizeGender(rider.gender) : "";
+}
 
 export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) {
   const [stateFilter, setStateFilter] = useState(ALL);
@@ -15,26 +30,17 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
   const [genderFilter, setGenderFilter] = useState(ALL);
   const [stravaFilter, setStravaFilter] = useState<StravaFilter>("all");
 
-  const states = useMemo(
-    () => [...new Set(riders.map((r) => r.state).filter((v): v is string => Boolean(v)))].sort(),
-    [riders],
-  );
-  const cities = useMemo(
-    () => [...new Set(riders.map((r) => r.city).filter((v): v is string => Boolean(v)))].sort(),
-    [riders],
-  );
-  const genders = useMemo(
-    () => [...new Set(riders.map((r) => r.gender).filter((v): v is string => Boolean(v)))].sort(),
-    [riders],
-  );
+  const states = useMemo(() => [...new Set(riders.map(riderState).filter(Boolean))].sort(), [riders]);
+  const cities = useMemo(() => [...new Set(riders.map(riderCity).filter(Boolean))].sort(), [riders]);
+  const genders = useMemo(() => [...new Set(riders.map(riderGender).filter(Boolean))].sort(), [riders]);
 
   const filtered = useMemo(
     () =>
       riders
         .filter((rider) => {
-          if (stateFilter !== ALL && rider.state !== stateFilter) return false;
-          if (cityFilter !== ALL && rider.city !== cityFilter) return false;
-          if (genderFilter !== ALL && rider.gender !== genderFilter) return false;
+          if (stateFilter !== ALL && riderState(rider) !== stateFilter) return false;
+          if (cityFilter !== ALL && riderCity(rider) !== cityFilter) return false;
+          if (genderFilter !== ALL && riderGender(rider) !== genderFilter) return false;
           const connected = Boolean(rider.stravaId);
           if (stravaFilter === "connected" && !connected) return false;
           if (stravaFilter === "unregistered" && connected) return false;
@@ -47,10 +53,10 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
   // Metrics reflect the currently filtered set, so narrowing by state/city/
   // gender/Strava status updates the counts too, not just the table rows.
   const metrics = useMemo(() => {
-    const uniqueCities = new Set(filtered.map((r) => r.city).filter(Boolean));
-    const uniqueStates = new Set(filtered.map((r) => r.state).filter(Boolean));
-    const male = filtered.filter((r) => r.gender === "Male").length;
-    const female = filtered.filter((r) => r.gender === "Female").length;
+    const uniqueCities = new Set(filtered.map(riderCity).filter(Boolean));
+    const uniqueStates = new Set(filtered.map(riderState).filter(Boolean));
+    const male = filtered.filter((r) => riderGender(r) === "Male").length;
+    const female = filtered.filter((r) => riderGender(r) === "Female").length;
     const stravaConnected = filtered.filter((r) => r.stravaId).length;
     return {
       total: filtered.length,
@@ -156,8 +162,8 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
                 <td>{index + 1}</td>
                 <td>{rider.full_name || "—"}</td>
                 <td>{rider.phone}</td>
-                <td>{rider.gender || "—"}</td>
-                <td>{[rider.city, rider.state].filter(Boolean).join(", ") || "—"}</td>
+                <td>{riderGender(rider) || "—"}</td>
+                <td>{[riderCity(rider), riderState(rider)].filter(Boolean).join(", ") || "—"}</td>
                 <td>
                   {rider.stravaId ? (
                     <a href={`https://www.strava.com/athletes/${rider.stravaId}`} target="_blank" rel="noopener noreferrer">

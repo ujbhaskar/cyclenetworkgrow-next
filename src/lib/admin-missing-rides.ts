@@ -17,23 +17,46 @@ export type RiderSearchResult = {
   profileImageUrl: string | null;
 };
 
+export type RiderSearchFilters = {
+  /** Case-insensitive substring match over first+last name. */
+  name?: string;
+  /** Case-insensitive substring match over the rider's resolved city. */
+  location?: string;
+  /** Exact match against the rider's resolved state (a dropdown value, not free text). */
+  state?: string;
+};
+
 /**
- * Name search over every Strava-connected rider — lets an admin find the
- * right person to pull missing rides for without already knowing their
- * phone or Strava athlete id. Reuses listStravaConnections (same data the
- * "Strava-Connected Riders" admin page shows) and filters in memory —
- * fine at this app's rider-count scale (see rider-metrics.ts's own note on
- * data volume), and Firestore has no case-insensitive substring query
- * anyway.
+ * Search over every Strava-connected rider by name/location/state, any
+ * combination — lets an admin find the right person to pull missing rides
+ * for without already knowing their phone or Strava athlete id. Reuses
+ * listStravaConnections (same data the "Strava-Connected Riders" admin page
+ * shows) and filters in memory — fine at this app's rider-count scale (see
+ * rider-metrics.ts's own note on data volume), and Firestore has no
+ * case-insensitive substring query anyway. Requires at least one filter, so
+ * this never accidentally dumps the entire rider list.
  */
-export async function searchRidersByName(query: string): Promise<RiderSearchResult[]> {
-  const trimmed = query.trim().toLowerCase();
-  if (!trimmed) {
+export async function searchRiders(filters: RiderSearchFilters): Promise<RiderSearchResult[]> {
+  const name = filters.name?.trim().toLowerCase() ?? "";
+  const location = filters.location?.trim().toLowerCase() ?? "";
+  const state = filters.state?.trim() ?? "";
+  if (!name && !location && !state) {
     return [];
   }
   const connections = await listStravaConnections();
   return connections
-    .filter((connection) => `${connection.firstName ?? ""} ${connection.lastName ?? ""}`.toLowerCase().includes(trimmed))
+    .filter((connection) => {
+      if (name && !`${connection.firstName ?? ""} ${connection.lastName ?? ""}`.toLowerCase().includes(name)) {
+        return false;
+      }
+      if (location && !(connection.resolvedCity ?? "").toLowerCase().includes(location)) {
+        return false;
+      }
+      if (state && connection.resolvedState !== state) {
+        return false;
+      }
+      return true;
+    })
     .slice(0, 20)
     .map((connection) => ({
       athleteId: connection.athleteId,

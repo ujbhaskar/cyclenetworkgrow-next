@@ -29,6 +29,13 @@ export type QualifyingRide = {
   type: string;
   startDate: string;
   bracket: MilestoneKm | null;
+  // Strava's VirtualRide type, or a trainer-flagged outdoor-type Ride —
+  // either way, rules §6(d)'s "Indoor Ride Adjustment" (75% points) applies.
+  isVirtual: boolean;
+  // This one ride's own contribution to the rider's total points — rules
+  // §6(a)/(d): floor(distanceKm / 25), ×0.75 if isVirtual. Per-ride so the
+  // "verify rides" modal can show exactly how each ride contributed.
+  points: number;
 };
 
 export type RiderMetric = {
@@ -46,6 +53,15 @@ export type RiderMetric = {
   totalDistanceKm: number;
   isFinisher: boolean;
   progressPercent: number | null;
+  // Rules §6's actual point-ranking system (distinct from the
+  // milestone-bracket qualification above, which only gates medals/
+  // certificates per §5(e)). distancePoints is §6(a)/(d) — sum of each
+  // qualifying day's floor(km/25), ×0.75 if indoor. bonusPoints is
+  // §6(b)/(c) — the Consistency/Endurance streak bonuses. totalPoints is
+  // their sum, and what the leaderboard is actually ranked by.
+  distancePoints: number;
+  bonusPoints: number;
+  totalPoints: number;
 };
 
 export type LongestRide = {

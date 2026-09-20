@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
@@ -8,6 +8,7 @@ import Alert from "react-bootstrap/Alert";
 import Toast from "react-bootstrap/Toast";
 import ToastContainer from "react-bootstrap/ToastContainer";
 import { ROLES, type Role, type UserProfile } from "@/lib/models/user";
+import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import CreateUserModal from "./CreateUserModal";
 import ImpersonateButton from "./ImpersonateButton";
 
@@ -22,6 +23,37 @@ export default function UsersTable({
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
+
+  const [nameFilter, setNameFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+
+  // Populated from whatever's actually in the current list, not a fixed
+  // list — so the dropdowns never offer a choice that would return zero
+  // rows, and stay correct as riders' locations change. Normalized first
+  // so "Kolkata"/"kolkata"/"KOLKATA" collapse into one option instead of
+  // three near-duplicates.
+  const cityOptions = useMemo(
+    () => [...new Set(users.map((u) => (u.city ? normalizeCity(u.city) : "")).filter(Boolean))].sort(),
+    [users],
+  );
+  const stateOptions = useMemo(
+    () => [...new Set(users.map((u) => (u.state ? normalizeCasing(u.state) : "")).filter(Boolean))].sort(),
+    [users],
+  );
+
+  const filteredUsers = users.filter((u) => {
+    if (nameFilter.trim() && !u.displayName.toLowerCase().includes(nameFilter.trim().toLowerCase())) {
+      return false;
+    }
+    if (cityFilter && (u.city ? normalizeCity(u.city) : "") !== cityFilter) {
+      return false;
+    }
+    if (stateFilter && (u.state ? normalizeCasing(u.state) : "") !== stateFilter) {
+      return false;
+    }
+    return true;
+  });
 
   async function refetch() {
     const res = await fetch("/api/admin/users");
@@ -72,6 +104,67 @@ export default function UsersTable({
 
       {error && <Alert variant="danger">{error}</Alert>}
 
+      <div className="d-flex flex-wrap align-items-end gap-2 mb-3">
+        <Form.Group>
+          <Form.Label className="small mb-1">Name</Form.Label>
+          <Form.Control
+            size="sm"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            placeholder="Search by name…"
+            style={{ width: 200 }}
+          />
+        </Form.Group>
+        <Form.Group>
+          <Form.Label className="small mb-1">City</Form.Label>
+          <Form.Select
+            size="sm"
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            style={{ width: 160 }}
+          >
+            <option value="">All cities</option>
+            {cityOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Form.Select>
+        </Form.Group>
+        <Form.Group>
+          <Form.Label className="small mb-1">State</Form.Label>
+          <Form.Select
+            size="sm"
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
+            style={{ width: 180 }}
+          >
+            <option value="">All states</option>
+            {stateOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Form.Select>
+        </Form.Group>
+        {(nameFilter || cityFilter || stateFilter) && (
+          <Button
+            size="sm"
+            variant="outline-secondary"
+            onClick={() => {
+              setNameFilter("");
+              setCityFilter("");
+              setStateFilter("");
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+        <span className="text-muted small ms-auto">
+          {filteredUsers.length} of {users.length} users
+        </span>
+      </div>
+
       <Table responsive hover className="table table-striped">
         <thead>
           <tr>
@@ -84,7 +177,7 @@ export default function UsersTable({
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <tr key={user.uid}>
               <td className="text-nowrap">{user.displayName}</td>
               <td>{user.email ?? "—"}</td>

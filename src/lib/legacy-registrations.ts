@@ -3,7 +3,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import { getSheetRows } from "@/lib/googleSheets";
 import { EVENTS_COLLECTION } from "@/lib/events";
 import type { EventDoc } from "@/lib/models/event";
-import { normalizeIndianState } from "@/lib/india-states";
+import { normalizeState } from "@/lib/india-states";
+import { cleanPhone, normalizeName, normalizeCity, normalizeGender } from "@/lib/registration-normalize";
 
 // Same (misspelled) collection name src/lib/strava.ts and rider-metrics.ts
 // already use — every rider who's ever connected Strava on the platform,
@@ -22,79 +23,6 @@ type AthleteTokenDoc = {
     sex?: string;
   };
 };
-
-// Matches the legacy admin panel's exact AdminService.cleanPhone: strip
-// everything but digits, keep the last 10 — the bare-digit, no-country-code
-// format both `events/{id}.riders` and `athelete_tokens.athlete.phone`
-// already use.
-function cleanPhone(raw: string): string {
-  return raw.replace(/\D/g, "").slice(-10);
-}
-
-function titleCase(trimmed: string): string {
-  return trimmed
-    .toLowerCase()
-    .split(" ")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-// Same casing problem as city/state/gender, applied to the name itself
-// ("NISHANT PATEL" / "prasenjit Dey" / "vinod chetule") — title-cased so
-// names display in one consistent pattern.
-function normalizeName(raw: string): string {
-  const trimmed = raw.trim().replace(/\s+/g, " ");
-  return trimmed ? titleCase(trimmed) : "";
-}
-
-// Free-text city entries vary wildly in casing across both the
-// registration sheet and Strava profiles ("KOLKATA" / "kolkata" /
-// "Kolkata") — title-case them so the same city always aggregates as one
-// value instead of fragmenting into 2-3 near-duplicates in any city-based
-// stat. Doesn't fix genuine spelling variants (e.g. "Bombay" vs "Mumbai"),
-// only case.
-// Exported for rider-metrics.ts's leaderboard, which pulls city from
-// sources this sync doesn't touch too (Strava's own athlete.city is never
-// normalized, and rows synced before this normalization existed) — same
-// casing fix applied defensively at display time, not just at sync time.
-export function normalizeCity(raw: string): string {
-  const trimmed = raw.trim().replace(/\s+/g, " ");
-  return trimmed ? titleCase(trimmed) : "";
-}
-
-// Same idea as normalizeCity, but state has a real canonical-name mapping
-// already (abbreviations like "WB"/"TN", not just casing) — see
-// src/lib/india-states.ts. Falls back to a trimmed/case-collapsed version
-// of the raw value for anything the alias table doesn't recognize (a
-// non-Indian entry, say), rather than silently dropping real data.
-function normalizeState(raw: string): string {
-  const trimmed = raw.trim().replace(/\s+/g, " ");
-  if (!trimmed) {
-    return "";
-  }
-  return normalizeIndianState(trimmed) ?? trimmed;
-}
-
-// Registration-sheet gender is free text ("Male"/"MALE"/"male"/"M" all seen
-// in real data) and Strava's own athlete.sex is a bare "M"/"F" — same
-// male/female recognition the legacy Angular admin's own getGender used
-// (OnlineEventAddUserComponent), just case-insensitive and also applied to
-// the sheet's values, which the legacy admin never actually normalized.
-// Anything else (blank, "Other", etc.) is title-cased rather than dropped.
-function normalizeGender(raw: string): string {
-  const trimmed = raw.trim().replace(/\s+/g, " ");
-  if (!trimmed) {
-    return "";
-  }
-  const lower = trimmed.toLowerCase();
-  if (lower === "m" || lower === "male") {
-    return "Male";
-  }
-  if (lower === "f" || lower === "female") {
-    return "Female";
-  }
-  return titleCase(trimmed);
-}
 
 export type RegistrationSyncResult = {
   sheetName: string;

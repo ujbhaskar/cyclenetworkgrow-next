@@ -9,6 +9,7 @@ import Col from "react-bootstrap/Col";
 import Alert from "react-bootstrap/Alert";
 import Dropdown from "react-bootstrap/Dropdown";
 import type { StravaConnection } from "@/lib/strava";
+import { normalizeCity } from "@/lib/registration-normalize";
 
 const PAGE_SIZE = 30;
 
@@ -36,13 +37,6 @@ function normalizeKey(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function toTitleCase(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (ch) => ch.toUpperCase());
-}
-
 // Sentinel for "has a state/city value, but it didn't resolve to anything
 // clean" — a real, selectable bucket rather than silently omitting these
 // riders from the filter entirely.
@@ -55,7 +49,7 @@ function buildCityOptions(connections: StravaConnection[]) {
     if (!raw) continue;
     const key = normalizeKey(raw);
     if (!labelByKey.has(key)) {
-      labelByKey.set(key, toTitleCase(raw));
+      labelByKey.set(key, normalizeCity(raw));
     }
   }
   return Array.from(labelByKey.entries())

@@ -104,3 +104,20 @@ export function normalizeIndianState(raw: unknown): string | null {
   }
   return STATE_ALIASES[cleanForLookup(raw)] ?? null;
 }
+
+// Same "collapse free-text variants to one consistent value" idea as
+// src/lib/registration-normalize.ts's normalizeCity/normalizeName, but for
+// state — resolves real abbreviations/misspellings via the alias table
+// above, not just casing. Falls back to a trimmed/case-collapsed version of
+// the raw value for anything the alias table doesn't recognize (a
+// non-Indian entry, say), rather than silently dropping real data. Needs
+// this file's `server-only` guard (the alias table), so only usable from
+// server-side code — see registration-normalize.ts for the client-safe,
+// casing-only equivalent used by e.g. the admin Users filter.
+export function normalizeState(raw: string): string {
+  const trimmed = raw.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return "";
+  }
+  return normalizeIndianState(trimmed) ?? trimmed;
+}

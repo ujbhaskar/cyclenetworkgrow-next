@@ -3,7 +3,8 @@ import { adminDb } from "@/lib/firebase/admin";
 import type { EventCard } from "@/lib/models/event";
 import { getEventRegisteredRiders } from "@/lib/events";
 import { normalizeIndianState } from "@/lib/india-states";
-import { normalizeCity } from "@/lib/legacy-registrations";
+import { normalizeCity } from "@/lib/registration-normalize";
+import { toNumber } from "@/lib/legacy-activity";
 import {
   MILESTONES_KM,
   MILESTONE_QUOTAS,
@@ -49,17 +50,17 @@ type LegacyActivity = {
   type?: string;
   start_date?: string;
   flagged?: boolean;
+  trainer?: boolean;
 };
 
-function toNumber(value: unknown): number {
-  if (typeof value === "number") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
+// Rules §6(a)/(d): every 25km earns 1 point, and an indoor (virtual or
+// trainer-flagged) ride earns only 75% of that — e.g. a 120km outdoor ride
+// is floor(120/25)=4 points, the same ride indoors is 3 points. Matches the
+// rules PDF's own worked examples exactly (36km->1/0.75, 155km->6/4.50,
+// 605km->24/18.00).
+function pointsForRide(distanceKm: number, isVirtual: boolean): number {
+  const base = Math.floor(distanceKm / 25);
+  return isVirtual ? base * 0.75 : base;
 }
 
 // India Standard Time, UTC+5:30 — this is an India-run event, so "same day"
@@ -70,6 +71,41 @@ const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
 function istDayKey(iso: string): string {
   return new Date(new Date(iso).getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// Rules §6(b)/(c), verified against the legacy Angular app's own live 1177
+// leaderboard (letscng-ui's cng11772024.component.ts
+// calculateExtraPoints/checkStreakPoints, confirmed still shipping in the
+// 1177-2026 route): +1 bonus point per complete run of 7 consecutive
+// qualifying days (non-overlapping — an 11-day run is floor(11/7)=1, not
+// two overlapping windows), plus +7 more if a single run reaches 77 days.
+// Both bonuses are additive on top of Distance Points, same as legacy.
+function streakBonusForRun(streakDays: number): number {
+  let points = Math.floor(streakDays / 7);
+  if (streakDays >= 77) {
+    points += 7;
+  }
+  return points;
+}
+
+function streakBonusPoints(dayKeys: string[]): number {
+  const sorted = [...new Set(dayKeys)].sort();
+  if (sorted.length === 0) {
+    return 0;
+  }
+  let bonus = 0;
+  let streak = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const diffDays = (new Date(sorted[i]).getTime() - new Date(sorted[i - 1]).getTime()) / ONE_DAY_MS;
+    if (diffDays === 1) {
+      streak += 1;
+    } else {
+      bonus += streakBonusForRun(streak);
+      streak = 1;
+    }
+  }
+  bonus += streakBonusForRun(streak);
+  return bonus;
 }
 
 // 1177 rules §5(f)-(h) and §8(b): multiple rides on the same day are never
@@ -153,6 +189,8 @@ function getQualifyingRides(
       return;
     }
 
+    const isVirtual = activity.type === "VirtualRide" || Boolean(activity.trainer);
+
     rides.push({
       activityId,
       distanceKm,
@@ -160,6 +198,8 @@ function getQualifyingRides(
       type: activity.type,
       startDate: activity.start_date as string,
       bracket: null,
+      isVirtual,
+      points: pointsForRide(distanceKm, isVirtual),
     });
   });
 
@@ -300,11 +340,13 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     // total qualifying ride count.
     const milestoneCounts: Record<MilestoneKm, number> = { 25: 0, 50: 0, 75: 0, 100: 0, 150: 0 };
     let totalDistanceKm = 0;
+    let distancePoints = 0;
     rides.forEach((ride) => {
       if (ride.bracket !== null) {
         milestoneCounts[ride.bracket] += 1;
       }
       totalDistanceKm += ride.distanceKm;
+      distancePoints += ride.points;
 
       if (!longestRide || ride.distanceKm > longestRide.distanceKm) {
         longestRide = {
@@ -345,8 +387,14 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     // A rider has "finished" the event's full quota structure only once
     // every bracket — not just the total ride count — hits its minimum
     // (1x150 + 3x100 + 6x75 + 15x50 + 30x25); a pile of short rides can't
-    // substitute for the longer-distance requirements.
+    // substitute for the longer-distance requirements. This "qualified"
+    // status is entirely separate from points/ranking below — matches the
+    // legacy app exactly, where the milestone badge and the points ranking
+    // never feed into each other.
     const isFinisher = MILESTONES_KM.every((milestone) => milestoneAchieved[milestone]);
+
+    const bonusPoints = streakBonusPoints(rides.map((ride) => istDayKey(ride.startDate)));
+    const totalPoints = distancePoints + bonusPoints;
 
     // City/state are attributed at the rider level (their home city gets
     // credit for their total distance), not per-ride.
@@ -385,6 +433,9 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       progressPercent: event.targetDistanceKm
         ? Math.min(100, (totalDistanceKm / event.targetDistanceKm) * 100)
         : null,
+      distancePoints,
+      bonusPoints,
+      totalPoints,
     });
   });
 
@@ -416,17 +467,22 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       totalDistanceKm: 0,
       isFinisher: false,
       progressPercent: event.targetDistanceKm ? 0 : null,
+      distancePoints: 0,
+      bonusPoints: 0,
+      totalPoints: 0,
     });
   });
 
-  // Riders who've completed the full quota rank above everyone else,
-  // regardless of distance — being "qualified" matters more than raw
-  // distance for this event's ranking. Within each group, sort by distance,
-  // then name (stable tie-break — matters most for the 0-distance riders
-  // above, which would otherwise sort in registration order).
+  // Rules §6(e) — ranked by points (Distance Points + Consistency/Endurance
+  // bonuses), tiebroken by total qualifying km, then name. Verified against
+  // the legacy Angular app's own live 1177 leaderboard sort
+  // (cng11772024.component.ts: `a.points == b.points ? b.total - a.total :
+  // b.points - a.points`) — deliberately NOT prioritizing isFinisher/the
+  // milestone quota badge, which legacy also keeps as a separate 🏆
+  // indicator that doesn't affect rank.
   metrics.sort((a, b) => {
-    if (a.isFinisher !== b.isFinisher) {
-      return a.isFinisher ? -1 : 1;
+    if (a.totalPoints !== b.totalPoints) {
+      return b.totalPoints - a.totalPoints;
     }
     if (a.totalDistanceKm !== b.totalDistanceKm) {
       return b.totalDistanceKm - a.totalDistanceKm;

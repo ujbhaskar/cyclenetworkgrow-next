@@ -8,8 +8,6 @@ import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
 import Aw80dLeaderboard from "@/components/events/Aw80dLeaderboard";
-import EventBannerImage from "@/components/events/EventBannerImage";
-import TornPaperEdge from "@/components/TornPaperEdge";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import { MILESTONES_KM, MILESTONE_QUOTAS } from "@/lib/models/rider-metric";
 
@@ -63,12 +61,6 @@ export default async function EventDetailPage({
 
   return (
     <div>
-      <div className="position-relative">
-        <EventBannerImage imageUrl={event.imageUrl} alt={event.name} height={500} iconSize={72} />
-
-        <TornPaperEdge fill="#ffffff" />
-      </div>
-
       {event.bannerMessage && <AnnouncementBar message={event.bannerMessage} variant="warning" />}
 
       <Container className="py-3" style={{ maxWidth: 1100 }}>
