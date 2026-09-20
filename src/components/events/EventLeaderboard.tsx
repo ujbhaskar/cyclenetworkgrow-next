@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Table from "react-bootstrap/Table";
+import Form from "react-bootstrap/Form";
 import { Modal, ModalHeader, ModalTitle, ModalBody, Tab, Tabs } from "react-bootstrap";
 import { MILESTONES_KM, type EventLeaderboardData, type LongestRide, type PlaceStat, type QualifyingRide } from "@/lib/models/rider-metric";
 import type { PublicEventRider } from "@/lib/events";
+import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import UserAvatar from "@/components/UserAvatar";
 import IndiaStateMap from "./IndiaStateMap";
 import SimpleBarChart from "./SimpleBarChart";
@@ -143,6 +145,31 @@ export default function EventLeaderboard({
   const [rides, setRides] = useState<QualifyingRide[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [nameFilter, setNameFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState("");
+
+  // Normalized so "Kolkata"/"kolkata" collapse into one dropdown option —
+  // same shared utility the admin tables use.
+  const cityOptions = useMemo(
+    () => [...new Set(riders.map((r) => (r.city ? normalizeCity(r.city) : "")).filter(Boolean))].sort(),
+    [riders],
+  );
+  const stateOptions = useMemo(
+    () => [...new Set(riders.map((r) => (r.state ? normalizeCasing(r.state) : "")).filter(Boolean))].sort(),
+    [riders],
+  );
+
+  const filteredRiders = useMemo(() => {
+    const name = nameFilter.trim().toLowerCase();
+    return riders.filter((r) => {
+      if (name && !r.name.toLowerCase().includes(name)) return false;
+      if (cityFilter && (r.city ? normalizeCity(r.city) : "") !== cityFilter) return false;
+      if (stateFilter && (r.state ? normalizeCasing(r.state) : "") !== stateFilter) return false;
+      return true;
+    });
+  }, [riders, nameFilter, cityFilter, stateFilter]);
+
   // -1 when signed out, no phone on file, or not a rider in this event.
   const myRowIndex = currentUserPhone ? riders.findIndex((r) => r.phone === currentUserPhone) : -1;
 
@@ -153,7 +180,7 @@ export default function EventLeaderboard({
   const [visibleCount, setVisibleCount] = useState(() =>
     myRowIndex >= 0 ? Math.max(PAGE_SIZE, myRowIndex + 1) : PAGE_SIZE,
   );
-  const visibleRiders = riders.slice(0, visibleCount);
+  const visibleRiders = filteredRiders.slice(0, visibleCount);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const myRowRef = useRef<HTMLTableRowElement | null>(null);
 
@@ -172,14 +199,14 @@ export default function EventLeaderboard({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          setVisibleCount((count) => Math.min(count + PAGE_SIZE, riders.length));
+          setVisibleCount((count) => Math.min(count + PAGE_SIZE, filteredRiders.length));
         }
       },
       { rootMargin: "300px" },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [riders.length]);
+  }, [filteredRiders.length]);
 
   const selectedRider = riders.find((r) => r.phone === selectedPhone) ?? null;
 
@@ -265,7 +292,68 @@ export default function EventLeaderboard({
                 )}
               </div>
             ) : (
-              <div style={{ overflowX: "auto" }}>
+              <>
+                <div className="d-flex flex-wrap align-items-end gap-2 mb-3">
+                  <Form.Group>
+                    <Form.Label className="small mb-1">Name</Form.Label>
+                    <Form.Control
+                      size="sm"
+                      value={nameFilter}
+                      onChange={(e) => setNameFilter(e.target.value)}
+                      placeholder="Search by name…"
+                      style={{ width: 200 }}
+                    />
+                  </Form.Group>
+                  <Form.Group>
+                    <Form.Label className="small mb-1">City</Form.Label>
+                    <Form.Select
+                      size="sm"
+                      value={cityFilter}
+                      onChange={(e) => setCityFilter(e.target.value)}
+                      style={{ width: 160 }}
+                    >
+                      <option value="">All cities</option>
+                      {cityOptions.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                  <Form.Group>
+                    <Form.Label className="small mb-1">State</Form.Label>
+                    <Form.Select
+                      size="sm"
+                      value={stateFilter}
+                      onChange={(e) => setStateFilter(e.target.value)}
+                      style={{ width: 180 }}
+                    >
+                      <option value="">All states</option>
+                      {stateOptions.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </Form.Select>
+                  </Form.Group>
+                  {(nameFilter || cityFilter || stateFilter) && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={() => {
+                        setNameFilter("");
+                        setCityFilter("");
+                        setStateFilter("");
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                  <span className="text-muted small ms-auto">
+                    {filteredRiders.length} of {riders.length} riders
+                  </span>
+                </div>
+                <div style={{ overflowX: "auto" }}>
                 <Table responsive hover className="align-middle">
                   <thead>
                     <tr>
@@ -345,15 +433,16 @@ export default function EventLeaderboard({
                     })}
                   </tbody>
                 </Table>
-                {visibleCount < riders.length && (
+                {visibleCount < filteredRiders.length && (
                   <div ref={sentinelRef} className="text-center text-muted small py-3">
                     Loading more riders…
                   </div>
                 )}
                 <div className="text-center text-muted small py-2">
-                  Showing {visibleRiders.length} of {riders.length} riders
+                  Showing {visibleRiders.length} of {filteredRiders.length} riders
                 </div>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </Tab>
