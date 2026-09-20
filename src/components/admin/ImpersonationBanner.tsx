@@ -25,7 +25,17 @@ export default function ImpersonationBanner({ riderName }: { riderName: string }
   }
 
   return (
-    <div className="d-flex flex-wrap align-items-center justify-content-center gap-2 bg-warning text-dark text-center py-2 px-3 small fw-medium">
+    // Explicit position + a z-index above Header's own (10) — on the home
+    // page and event detail pages, Header floats transparently over the
+    // hero via `position: absolute; z-index: 10` with no positioned
+    // ancestor, so it's anchored to the true top of the page just like this
+    // banner is. Without out-stacking it here, Header's (invisible, since
+    // transparent there) box sits on top and swallows clicks meant for
+    // this banner's buttons.
+    <div
+      className="d-flex flex-wrap align-items-center justify-content-center gap-2 bg-warning text-dark text-center py-2 px-3 small fw-medium"
+      style={{ position: "relative", zIndex: 20 }}
+    >
       <i className="bi bi-incognito" aria-hidden />
       Viewing as <strong>{riderName}</strong> (admin impersonation)
       <button
