@@ -59,9 +59,15 @@ export default async function EventDetailPage({
       </div>
 
       <Container className="py-3" style={{ maxWidth: 1100 }}>
+        {event.bannerMessage && (
+          <div className="alert alert-warning" role="alert">
+            {event.bannerMessage}
+          </div>
+        )}
+
         <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start gap-2 mb-3">
           <h1 className="fw-bold mb-0">{event.name}</h1>
-          <span>
+          <span className="text-nowrap text-danger">
             <i className="bi bi-calendar-event me-1" aria-hidden /> {formatDate(event.startDate)} –{" "}
             {formatDate(event.endDate)}
           </span>

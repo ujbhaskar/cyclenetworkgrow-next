@@ -78,6 +78,7 @@ function mapEventCard(id: string, data: EventDoc): EventCard {
     description: data.description ?? null,
     paymentLink: data.payment_link ?? null,
     rulesUrl: decodeLegacyStorageUrl(data.rules),
+    bannerMessage: data.bannerMessage?.trim() || null,
   };
 }
 

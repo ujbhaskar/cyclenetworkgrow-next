@@ -50,6 +50,10 @@ export type EventDoc = {
   archive?: string;
   registeredGoogleDataXLS?: string;
   ultraPoints?: string;
+  // Admin-authored notice shown at the top of this event's public detail
+  // page (e.g. "registration closes 21st Sept") — plain text, not part of
+  // the legacy schema, blank/absent means no banner.
+  bannerMessage?: string;
   riders?: Record<string, unknown>;
   eastEnduranceRules?: unknown;
   configuration?: unknown;
@@ -76,6 +80,7 @@ export type EventInput = {
   eventType: string;
   status: string;
   registeredGoogleDataXLS?: string;
+  bannerMessage?: string;
 };
 
 // Display-ready shape for the public home page.
@@ -97,4 +102,5 @@ export type EventCard = {
   description: string | null;
   paymentLink: string | null;
   rulesUrl: string | null;
+  bannerMessage: string | null;
 };

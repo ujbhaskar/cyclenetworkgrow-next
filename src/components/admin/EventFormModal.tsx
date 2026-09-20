@@ -27,6 +27,7 @@ const EMPTY: EventInput = {
   eventType: "",
   status: "",
   registeredGoogleDataXLS: "",
+  bannerMessage: "",
 };
 
 // Plain URL <-> base64 round trip, matching the legacy admin's own
@@ -69,6 +70,7 @@ function formFromInitial(event: InitialEvent): EventInput {
     eventType: typeof event.eventType === "string" ? event.eventType : "",
     status: typeof event.status === "string" ? event.status : "",
     registeredGoogleDataXLS: typeof event.registeredGoogleDataXLS === "string" ? event.registeredGoogleDataXLS : "",
+    bannerMessage: typeof event.bannerMessage === "string" ? event.bannerMessage : "",
   };
 }
 
@@ -148,6 +150,20 @@ export default function EventFormModal({
             <Form.Group className="mb-3">
               <Form.Label>Description</Form.Label>
               <Form.Control as="textarea" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Banner message</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={2}
+                value={form.bannerMessage ?? ""}
+                onChange={(e) => set("bannerMessage", e.target.value)}
+                placeholder="e.g. Registration closes 21st Sept — sign up now!"
+              />
+              <Form.Text className="text-muted">
+                Shown as a banner at the top of this event&apos;s public page. Leave empty to show nothing.
+              </Form.Text>
             </Form.Group>
 
             <Row>

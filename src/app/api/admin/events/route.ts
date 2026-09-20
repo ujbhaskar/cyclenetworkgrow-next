@@ -79,6 +79,7 @@ export async function POST(request: Request) {
     metrics: typeof body.metrics === "string" ? body.metrics : "",
     eventType: body.eventType,
     status: body.status,
+    bannerMessage: typeof body.bannerMessage === "string" ? body.bannerMessage : "",
   };
 
   const event = await createEvent(input);

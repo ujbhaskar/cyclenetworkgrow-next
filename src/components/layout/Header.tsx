@@ -30,15 +30,25 @@ function isHeroOverlayPage(pathname: string): boolean {
 }
 
 // "Events" should read as active on the listing page AND any individual
-// event's detail page, not just an exact path match like every other link.
+// event's detail page, not just an exact path match like every other link —
+// UNLESS one of the other configured nav links points at this exact event
+// (e.g. an admin-added "1177" shortcut to /events/1177-6.0), in which case
+// that more specific link should be the only one highlighted.
 // "Admin" should read as active anywhere under /admin, not just the
 // dashboard page it links to.
-function isNavLinkActive(pathname: string, href: string): boolean {
-  if (href === "/events") {
-    return pathname === "/events" || isEventDetailPage(pathname);
-  }
+function isNavLinkActive(pathname: string, href: string, links: Pick<NavLink, "href">[]): boolean {
   if (href === "/admin/dashboard") {
     return pathname.startsWith("/admin");
+  }
+  if (href === "/events") {
+    if (pathname === "/events") {
+      return true;
+    }
+    if (!isEventDetailPage(pathname)) {
+      return false;
+    }
+    const hasMoreSpecificMatch = links.some((link) => link.href !== "/events" && link.href === pathname);
+    return !hasMoreSpecificMatch;
   }
   return pathname === href;
 }
@@ -111,7 +121,7 @@ export default function Header({ user, navLinks }: { user: HeaderUser | null; na
         <Navbar.Collapse id="main-nav">
           <Nav className="mx-auto">
             {links.map((link) => {
-              const isActive = isNavLinkActive(pathname, link.href);
+              const isActive = isNavLinkActive(pathname, link.href, links);
               return (
                 <Nav.Link
                   key={link.href}
