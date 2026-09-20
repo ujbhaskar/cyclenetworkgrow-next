@@ -62,6 +62,34 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
+// India Standard Time, UTC+5:30 — this is an India-run event, so "same day"
+// means the same IST calendar day, not the same UTC one (a ride starting
+// at 2026-09-20T19:00Z is already 2026-09-21 00:30 IST). Same reasoning as
+// aw80d.ts's eventWindowBounds.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+function istDayKey(iso: string): string {
+  return new Date(new Date(iso).getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// 1177 rules §5(f)-(h) and §8(b): multiple rides on the same day are never
+// combined — only that day's single longest ride counts at all, and only
+// once (it can't also be "broken into" smaller counted pieces). Keeps the
+// max-distance ride per IST day and drops every other same-day ride
+// entirely, before bracket assignment — so two 25km+ rides on one day can
+// never award two separate bracket credits or sum their distance.
+function dedupeToLongestRidePerDay(rides: QualifyingRide[]): QualifyingRide[] {
+  const byDay = new Map<string, QualifyingRide>();
+  rides.forEach((ride) => {
+    const key = istDayKey(ride.startDate);
+    const existing = byDay.get(key);
+    if (!existing || ride.distanceKm > existing.distanceKm) {
+      byDay.set(key, ride);
+    }
+  });
+  return [...byDay.values()];
+}
+
 const MILESTONES_DESC = [...MILESTONES_KM].reverse() as MilestoneKm[];
 
 // Waterfall bracket assignment: process brackets highest to lowest, filling
@@ -135,7 +163,7 @@ function getQualifyingRides(
     });
   });
 
-  return assignBrackets(rides);
+  return assignBrackets(dedupeToLongestRidePerDay(rides));
 }
 
 /**
