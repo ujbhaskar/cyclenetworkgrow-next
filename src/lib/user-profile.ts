@@ -2,6 +2,7 @@ import "server-only";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { isSyntheticEmail, normalizePhone, syntheticEmailToPhone } from "@/lib/auth/phone";
 import type { UserProfile, UserProfileSignupInput } from "@/lib/models/user";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 export type { Role, UserProfile, UserProfileSignupInput } from "@/lib/models/user";
 
@@ -160,4 +161,8 @@ export async function updateOwnProfile(
     },
     { merge: true }
   );
+  // A rider's own address edit is exactly the kind of change the 1177
+  // leaderboard's cache exists to avoid re-fetching on every page view —
+  // but it should still show up immediately, not after the fallback TTL.
+  invalidateEventLeaderboardCache();
 }

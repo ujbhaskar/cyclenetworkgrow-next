@@ -3,7 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { STRAVA_WEBHOOK_VERIFY_TOKEN } from "@/lib/strava";
 import { findStravaTokenDocById, getValidStravaAccessToken } from "@/lib/strava-tokens";
 import { getEventAdminDetail } from "@/lib/events";
-import { EVENT_1177_ID } from "@/lib/rider-metrics";
+import { EVENT_1177_ID, invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 import { getRideRulesConfig } from "@/lib/ride-rules";
 
 const RIDES_COLLECTION = "rides";
@@ -144,6 +144,7 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
     );
   const distanceKm = Math.round(distance / 1000);
   console.log(`[strava webhook] ingested activity ${activityId} (${activity.type}, ${distanceKm}km) for phone ${phone}`);
+  invalidateEventLeaderboardCache();
   return { outcome: "accepted", reason: `Ingested — ${activity.type}, ${distanceKm}km` };
 }
 
@@ -219,6 +220,9 @@ export async function POST(request: Request) {
         .then(() => true)
         .catch(() => false); // No rides doc (or field) for this phone yet — nothing to delete.
       console.log(`[strava webhook] deleted activity ${event.object_id} for phone ${participant.phone}`);
+      if (deleted) {
+        invalidateEventLeaderboardCache();
+      }
       return finish({
         outcome: "deleted",
         reason: deleted ? "Ride removed" : "Nothing to remove (no matching ride on file)",

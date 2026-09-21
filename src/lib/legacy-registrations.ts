@@ -5,6 +5,7 @@ import { EVENTS_COLLECTION } from "@/lib/events";
 import type { EventDoc } from "@/lib/models/event";
 import { normalizeState } from "@/lib/india-states";
 import { cleanPhone, normalizeName, normalizeCity, normalizeGender } from "@/lib/registration-normalize";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 // Same (misspelled) collection name src/lib/strava.ts and rider-metrics.ts
 // already use — every rider who's ever connected Strava on the platform,
@@ -138,6 +139,7 @@ export async function syncEventRegistrationsFromSheet(eventId: string): Promise<
   });
 
   await docRef.update({ riders });
+  invalidateEventLeaderboardCache();
 
   return {
     sheetName,

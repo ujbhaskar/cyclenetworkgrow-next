@@ -1,6 +1,7 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import { normalizeIndianState } from "@/lib/india-states";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 // Same production collection the legacy Angular app (and this app's own
 // read-only rider-metrics.ts) already uses — deliberately NOT a new
@@ -41,7 +42,7 @@ function requireEnv(name: string): string {
  * changing the legacy format — is what keeps this app's connections visible
  * to the existing rider-metrics.ts reader and the old Angular app alike.
  */
-export function toLegacyPhone(e164Phone: string): string {
+function toLegacyPhone(e164Phone: string): string {
   return e164Phone.replace(/^\+91/, "").replace(/^\+1/, "").replace(/^\+/, "");
 }
 
@@ -235,6 +236,7 @@ export async function saveStravaConnection(tokens: StravaTokenResponse, e164Phon
         phone: toLegacyPhone(e164Phone),
       },
     });
+  invalidateEventLeaderboardCache();
 }
 
 /**
@@ -259,6 +261,7 @@ export async function disconnectStrava(athleteId: string): Promise<void> {
   }
 
   await ref.delete();
+  invalidateEventLeaderboardCache();
 }
 
 export type StravaSubscription = {

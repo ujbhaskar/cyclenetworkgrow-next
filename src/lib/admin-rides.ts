@@ -1,5 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 // Same collection rider-metrics.ts reads — one doc per rider, doc id is
 // their phone number, each doc a map of activityId -> raw Strava-shaped
@@ -89,5 +90,8 @@ export async function deleteRides(phones: string[]): Promise<{ deleted: number }
     await batch.commit();
   }
 
+  if (validPhones.length > 0) {
+    invalidateEventLeaderboardCache();
+  }
   return { deleted: validPhones.length };
 }

@@ -2,6 +2,7 @@ import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { listStravaConnections } from "@/lib/strava";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 // Same collection admin-rides.ts/admin-missing-rides.ts and rider-metrics.ts
 // already use.
@@ -100,6 +101,7 @@ export async function updateRiderRideActivities(phone: string, activities: RideA
     update[activity.id] = activity;
   });
   await adminDb.collection(RIDES_COLLECTION).doc(phone).set(update, { merge: true });
+  invalidateEventLeaderboardCache();
   return activities.length;
 }
 
@@ -116,4 +118,5 @@ export async function deleteRiderRideActivity(phone: string, activityId: string)
     .collection(RIDES_COLLECTION)
     .doc(phone)
     .update({ [activityId]: FieldValue.delete() });
+  invalidateEventLeaderboardCache();
 }

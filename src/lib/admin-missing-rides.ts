@@ -2,6 +2,7 @@ import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import { listStravaConnections } from "@/lib/strava";
 import { findStravaTokenDocByPhone, findStravaTokenDocById, getValidStravaAccessToken } from "@/lib/strava-tokens";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 // Same collection src/lib/admin-rides.ts and rider-metrics.ts already use.
 const RIDES_COLLECTION = "rides";
@@ -206,5 +207,6 @@ export async function syncActivitiesToRides(phone: string, athleteId: string, ac
   });
 
   await adminDb.collection(RIDES_COLLECTION).doc(phone).set(activitiesMap, { merge: true });
+  invalidateEventLeaderboardCache();
   return activities.length;
 }

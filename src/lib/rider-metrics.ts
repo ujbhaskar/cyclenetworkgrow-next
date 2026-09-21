@@ -1,10 +1,10 @@
 import "server-only";
+import { unstable_cache, revalidateTag } from "next/cache";
 import { adminDb } from "@/lib/firebase/admin";
 import type { EventCard } from "@/lib/models/event";
 import { getEventRegisteredRiders } from "@/lib/events";
-import { toLegacyPhone } from "@/lib/strava";
 import { normalizeIndianState } from "@/lib/india-states";
-import { normalizeCity } from "@/lib/registration-normalize";
+import { normalizeCity, cleanPhone } from "@/lib/registration-normalize";
 import { toNumber } from "@/lib/legacy-activity";
 import {
   MILESTONES_KM,
@@ -251,7 +251,7 @@ function eventWindowMs(startDate: string, endDate: string): { start: number; end
   return { start, end: officialEnd };
 }
 
-export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
+async function computeEventLeaderboard(event: EventCard, limit: number): Promise<EventLeaderboardData> {
   const { start, end } = eventWindowMs(event.startDate, event.endDate);
 
   const [ridesSnapshot, ridersSnapshot, tokensSnapshot, usersSnapshot, registeredRiders] = await Promise.all([
@@ -327,7 +327,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     if (!data.phone) {
       return;
     }
-    const phone = toLegacyPhone(data.phone);
+    const phone = cleanPhone(data.phone);
     if (data.city) {
       cityByPhone.set(phone, normalizeCity(data.city));
     }
@@ -548,6 +548,52 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     bracketTotals,
     genderStats,
   };
+}
+
+// One tag for the entire computed leaderboard (rides + riders +
+// athelete_tokens + users + the event's registered-riders snapshot, all
+// folded into one result) — every write path that touches any of those
+// (the Strava webhook, admin ride tools, registration sync, Strava
+// connect/disconnect, a rider's own profile edit) calls
+// invalidateEventLeaderboardCache() so the change shows up on the next
+// request instead of waiting out CACHE_REVALIDATE_SECONDS below. That TTL
+// is purely a safety net for any write path this list missed — it's not
+// the primary way this cache is meant to go fresh.
+const LEADERBOARD_CACHE_TAG = "event-leaderboard";
+const CACHE_REVALIDATE_SECONDS = 60 * 60; // 1 hour
+
+/**
+ * Rider leaderboard for one event — buckets each rider's real Strava-synced
+ * rides (within the event's date window, excluding flagged/cheat-flagged
+ * activities and anything not tagged Ride/VirtualRide) into the distance
+ * brackets in MILESTONES_KM, matching the qualifying-ride counting scheme
+ * described in docs/REQUIREMENTS.md §3.2/§3.4.
+ *
+ * Cached (see LEADERBOARD_CACHE_TAG above) rather than recomputed from a
+ * full scan of the `rides` collection (~15k activities) on every page
+ * view — event.startDate/endDate/targetDistanceKm are included in the
+ * cache key precisely so an admin edit to those fields is naturally a
+ * cache miss, with no separate invalidation call needed for that case.
+ */
+export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
+  const getCached = unstable_cache(
+    () => computeEventLeaderboard(event, limit),
+    [event.id, event.startDate, event.endDate, String(event.targetDistanceKm), String(limit)],
+    { tags: [LEADERBOARD_CACHE_TAG], revalidate: CACHE_REVALIDATE_SECONDS },
+  );
+  return getCached();
+}
+
+/**
+ * Call from any write path that changes data getEventLeaderboard reads —
+ * see the collection list on LEADERBOARD_CACHE_TAG above. `{ expire: 0 }`
+ * (rather than the `"max"` stale-while-revalidate profile) because the
+ * whole point here is that a rider's own action — a new ride, an edited
+ * profile — shows up immediately, not "eventually, once someone else's
+ * request happens to trigger a background refresh."
+ */
+export function invalidateEventLeaderboardCache(): void {
+  revalidateTag(LEADERBOARD_CACHE_TAG, { expire: 0 });
 }
 
 // Every IST calendar day from startDateOnly through endDateOnly inclusive
