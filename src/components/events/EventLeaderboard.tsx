@@ -365,17 +365,18 @@ export default function EventLeaderboard({
                   .cng-leaderboard-scroll { overflow: auto; max-height: 70vh; overscroll-behavior: contain; }
                   .cng-leaderboard-scroll table thead th { position: sticky; top: 0; z-index: 2; background: #fff; }
                   .cng-leaderboard-scroll table .col-rank,
-                  .cng-leaderboard-scroll table .col-rider { position: sticky; z-index: 1; background: #fff; }
-                  .cng-leaderboard-scroll table .col-rank { left: 0; width: 44px; }
-                  .cng-leaderboard-scroll table .col-rider { left: 44px; box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15); }
+                  .cng-leaderboard-scroll table .col-name { position: sticky; z-index: 1; background: #fff; }
+                  .cng-leaderboard-scroll table .col-rank { left: 0; width: 42px; }
+                  .cng-leaderboard-scroll table .col-name { left: 42px; box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15); }
                   .cng-leaderboard-scroll table thead th.col-rank,
-                  .cng-leaderboard-scroll table thead th.col-rider { z-index: 3; }
+                  .cng-leaderboard-scroll table thead th.col-name { z-index: 3; }
                 `}</style>
                 <Table hover className="align-middle mb-0">
                   <thead>
                     <tr>
                       <th className="col-rank">Rank</th>
-                      <th className="col-rider">Rider</th>
+                      <th aria-hidden />
+                      <th className="col-name">Rider</th>
                       <th className="text-end text-nowrap" title="Rules §6 — Distance Points + Consistency/Endurance bonuses; ranking's actual sort key">
                         Points
                       </th>
@@ -407,28 +408,26 @@ export default function EventLeaderboard({
                         title="View this rider's qualifying rides"
                       >
                         <td className="col-rank" style={stickyCellStyle}>{index + 1}</td>
-                        <td className="col-rider" style={stickyCellStyle}>
-                          <div className="d-flex align-items-center gap-2">
-                            <UserAvatar photoUrl={rider.photoUrl} />
-                            <div>
-                              <div className="text-primary">
-                                {rider.name}
-                                {isMe && <span className="badge bg-success ms-2">You</span>}
-                                {rider.isFinisher && (
-                                  <i
-                                    className="bi bi-trophy-fill text-warning ms-2"
-                                    title="Completed the full quota at every milestone"
-                                    aria-hidden
-                                  />
-                                )}
-                              </div>
-                              {(rider.city || rider.state) && (
-                                <div className="text-muted" style={{ fontSize: 12 }}>
-                                  {[rider.city, rider.state].filter(Boolean).join(", ")}
-                                </div>
-                              )}
-                            </div>
+                        <td>
+                          <UserAvatar photoUrl={rider.photoUrl} />
+                        </td>
+                        <td className="col-name" style={stickyCellStyle}>
+                          <div className="text-primary">
+                            {rider.name}
+                            {isMe && <span className="badge bg-success ms-2">You</span>}
+                            {rider.isFinisher && (
+                              <i
+                                className="bi bi-trophy-fill text-warning ms-2"
+                                title="Completed the full quota at every milestone"
+                                aria-hidden
+                              />
+                            )}
                           </div>
+                          {(rider.city || rider.state) && (
+                            <div className="text-muted" style={{ fontSize: 12 }}>
+                              {[rider.city, rider.state].filter(Boolean).join(", ")}
+                            </div>
+                          )}
                         </td>
                         <td className="text-end fw-bold">
                           {rider.totalPoints.toLocaleString(undefined, { maximumFractionDigits: 2 })}
