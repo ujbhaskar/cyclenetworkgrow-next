@@ -229,11 +229,19 @@ const TRIAL_LOOKBACK_MS = 7 * ONE_DAY_MS;
 // Shared by getEventLeaderboard and getRiderRides, so the leaderboard and
 // its "verify rides" modal always agree on which activities are in-window.
 // `end` is inclusive of the whole end-date day, not just its first
-// millisecond.
+// millisecond. Both bounds are shifted by IST_OFFSET_MS for the same reason
+// istDayKey() above is — startDate/endDate are bare "YYYY-MM-DD" values
+// meaning an India calendar date, and `new Date(...)` alone parses those as
+// UTC midnight (5:30am IST). Left uncorrected, a real ride from the first
+// ~5.5 hours of the event's actual (IST) start date fell in a gap: too late
+// for trial mode (which turns off once `now` passes the raw UTC instant)
+// but before the raw-UTC `officialStart` the strict window required — see
+// aw80d.ts's eventWindowBounds, which already applies this same shift.
 function eventWindowMs(startDate: string, endDate: string): { start: number; end: number } {
-  const officialStart = new Date(startDate).getTime();
+  const officialStart = new Date(startDate).getTime() - IST_OFFSET_MS;
+  const officialEnd = new Date(endDate).getTime() - IST_OFFSET_MS + ONE_DAY_MS - 1;
   const start = Date.now() < officialStart ? officialStart - TRIAL_LOOKBACK_MS : officialStart;
-  return { start, end: new Date(endDate).getTime() + ONE_DAY_MS - 1 };
+  return { start, end: officialEnd };
 }
 
 export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
