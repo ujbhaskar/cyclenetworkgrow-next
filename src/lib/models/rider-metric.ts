@@ -62,6 +62,9 @@ export type RiderMetric = {
   distancePoints: number;
   bonusPoints: number;
   totalPoints: number;
+  // Keyed by IST day, "YYYY-MM-DD" — powers the "Daily Progress" tab
+  // without a second pass over this rider's rides. See DailyProgressCell.
+  totalsByDay: Record<string, DailyProgressCell>;
 };
 
 export type LongestRide = {
@@ -81,6 +84,34 @@ export type PlaceStat = {
 export type GenderStat = {
   riderCount: number;
   totalDistanceKm: number;
+};
+
+// One rider's single (rules §5(f)-(h)/§8(b): only ever one, the day's
+// longest ride) qualifying ride on a given IST calendar day — the cell
+// data behind the "Daily Progress" matrix, click-through to Strava via
+// activityId.
+export type DailyProgressCell = {
+  distanceKm: number;
+  activityId: string;
+};
+
+export type DailyProgressRider = {
+  phone: string;
+  name: string;
+  // Keyed by IST day, "YYYY-MM-DD" — see EventDailyProgressData.days for
+  // the full set of columns; a day with no qualifying ride simply has no
+  // entry here.
+  totalsByDay: Record<string, DailyProgressCell>;
+  totalDistanceKm: number;
+};
+
+export type EventDailyProgressData = {
+  // IST day keys, newest first, from the event's start date through
+  // today (or the event's end date, whichever is sooner).
+  days: string[];
+  // Riders with at least one qualifying ride, ranked by total distance —
+  // same as the leaderboard, a rider who hasn't ridden yet isn't shown.
+  riders: DailyProgressRider[];
 };
 
 export type EventLeaderboardData = {

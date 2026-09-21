@@ -15,6 +15,9 @@ import {
   type PlaceStat,
   type GenderStat,
   type EventLeaderboardData,
+  type DailyProgressCell,
+  type DailyProgressRider,
+  type EventDailyProgressData,
 } from "@/lib/models/rider-metric";
 
 // The "1177 Grand Endurance" event's doc id — shared with the event detail
@@ -31,6 +34,9 @@ export type {
   PlaceStat,
   GenderStat,
   EventLeaderboardData,
+  DailyProgressCell,
+  DailyProgressRider,
+  EventDailyProgressData,
 };
 
 // All read-only, live production collections — same rule as the events
@@ -69,7 +75,7 @@ function pointsForRide(distanceKm: number, isVirtual: boolean): number {
 // aw80d.ts's eventWindowBounds.
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-function istDayKey(iso: string): string {
+export function istDayKey(iso: string): string {
   return new Date(new Date(iso).getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
@@ -347,6 +353,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     // also as a 25/50/75KM ride — so a rider's bracket counts sum to their
     // total qualifying ride count.
     const milestoneCounts: Record<MilestoneKm, number> = { 25: 0, 50: 0, 75: 0, 100: 0, 150: 0 };
+    const totalsByDay: Record<string, DailyProgressCell> = {};
     let totalDistanceKm = 0;
     let distancePoints = 0;
     rides.forEach((ride) => {
@@ -355,6 +362,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       }
       totalDistanceKm += ride.distanceKm;
       distancePoints += ride.points;
+      totalsByDay[istDayKey(ride.startDate)] = { distanceKm: ride.distanceKm, activityId: ride.activityId };
 
       if (!longestRide || ride.distanceKm > longestRide.distanceKm) {
         longestRide = {
@@ -444,6 +452,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       distancePoints,
       bonusPoints,
       totalPoints,
+      totalsByDay,
     });
   });
 
@@ -478,6 +487,7 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
       distancePoints: 0,
       bonusPoints: 0,
       totalPoints: 0,
+      totalsByDay: {},
     });
   });
 
@@ -518,6 +528,54 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     bracketTotals,
     genderStats,
   };
+}
+
+// Every IST calendar day from startDateOnly through endDateOnly inclusive
+// (both bare "YYYY-MM-DD", as event.startDate/endDate are) — a plain
+// calendar-day walk, not a timestamp shift, since these two are already
+// the IST dates themselves rather than UTC instants that need correcting
+// (contrast istMidnight() in events.ts, which converts the other
+// direction — a calendar date into the UTC instant of its IST midnight).
+function enumerateDaysInclusive(startDateOnly: string, endDateOnly: string): string[] {
+  const days: string[] = [];
+  let cursor = new Date(`${startDateOnly}T00:00:00Z`).getTime();
+  const endMs = new Date(`${endDateOnly}T00:00:00Z`).getTime();
+  while (cursor <= endMs) {
+    days.push(new Date(cursor).toISOString().slice(0, 10));
+    cursor += ONE_DAY_MS;
+  }
+  return days;
+}
+
+/**
+ * Reshapes getEventLeaderboard's already-computed riders into the 1177
+ * event's "Daily Progress" matrix (rider × IST-day instead of rider ×
+ * milestone-bracket) — a pure, synchronous transform of data already in
+ * memory (each RiderMetric's totalsByDay), not a second pass over
+ * Firestore's `rides` collection. Call this with the same
+ * EventLeaderboardData already fetched for the leaderboard tab.
+ */
+export function buildEventDailyProgress(
+  leaderboardRiders: RiderMetric[],
+  eventStartDate: string,
+  eventEndDate: string,
+): EventDailyProgressData {
+  const todayIst = istDayKey(new Date().toISOString());
+  const days = enumerateDaysInclusive(eventStartDate, eventEndDate).filter((day) => day <= todayIst);
+
+  const riders: DailyProgressRider[] = leaderboardRiders
+    .filter((rider) => rider.totalRides > 0)
+    .map((rider) => ({
+      phone: rider.phone,
+      name: rider.name,
+      totalsByDay: rider.totalsByDay,
+      totalDistanceKm: rider.totalDistanceKm,
+    }))
+    .sort((a, b) => b.totalDistanceKm - a.totalDistanceKm || a.name.localeCompare(b.name));
+
+  // Newest first, matching how riders actually want to check "did I ride
+  // today/yesterday" without scrolling past the whole event's history.
+  return { days: [...days].reverse(), riders };
 }
 
 /**

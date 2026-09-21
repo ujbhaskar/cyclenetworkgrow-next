@@ -11,7 +11,7 @@ import {
   isEventLive,
   getEventDayNumber,
 } from "@/lib/events";
-import { getEventLeaderboard, EVENT_1177_ID } from "@/lib/rider-metrics";
+import { getEventLeaderboard, buildEventDailyProgress, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
 import Aw80dLeaderboard from "@/components/events/Aw80dLeaderboard";
@@ -59,6 +59,13 @@ export default async function EventDetailPage({
   // already has its own registered-rider display built into its team
   // leaderboard, so this is only needed for the generic path.
   const registeredRiders = isAw80d ? [] : await getPublicEventRiders(event.id);
+  // The day-by-day distance matrix is 1177-specific (rules §5(f)-(h)/§8(b)'s
+  // one-ride-per-day dedup) — derived from the leaderboard's own riders, no
+  // second Firestore scan.
+  const dailyProgress =
+    event.id === MILESTONE_QUOTA_EVENT_ID && leaderboard
+      ? buildEventDailyProgress(leaderboard.riders, event.startDate, event.endDate)
+      : null;
 
   // So the leaderboard can highlight the signed-in visitor's own row — null
   // for a signed-out visitor or one with no phone on file. RiderMetric.phone
@@ -193,6 +200,7 @@ export default async function EventDetailPage({
                 eventEndDate={event.endDate}
                 registeredRiders={registeredRiders}
                 currentUserPhone={currentUserPhone}
+                dailyProgress={dailyProgress}
               />
             )
           )}

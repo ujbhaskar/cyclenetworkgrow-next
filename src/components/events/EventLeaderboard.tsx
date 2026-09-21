@@ -4,12 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import { Modal, ModalHeader, ModalTitle, ModalBody, Tab, Tabs } from "react-bootstrap";
-import { MILESTONES_KM, type EventLeaderboardData, type LongestRide, type PlaceStat, type QualifyingRide } from "@/lib/models/rider-metric";
+import {
+  MILESTONES_KM,
+  type EventLeaderboardData,
+  type EventDailyProgressData,
+  type LongestRide,
+  type PlaceStat,
+  type QualifyingRide,
+} from "@/lib/models/rider-metric";
 import type { PublicEventRider } from "@/lib/events";
 import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import UserAvatar from "@/components/UserAvatar";
 import IndiaStateMap from "./IndiaStateMap";
 import SimpleBarChart from "./SimpleBarChart";
+import EventDailyProgressTable from "./EventDailyProgressTable";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -112,6 +120,7 @@ export default function EventLeaderboard({
   eventEndDate,
   registeredRiders = [],
   currentUserPhone = null,
+  dailyProgress = null,
 }: {
   data: EventLeaderboardData;
   eventStartDate: string;
@@ -123,6 +132,10 @@ export default function EventLeaderboard({
    * their own row can be highlighted/scrolled to — null for a signed-out
    * visitor or one with no phone on file. */
   currentUserPhone?: string | null;
+  /** 1177-specific day-by-day distance matrix — null for events (or
+   * editions) this hasn't been wired up for, in which case the "Daily
+   * Progress" tab isn't shown at all rather than rendering empty. */
+  dailyProgress?: EventDailyProgressData | null;
 }) {
   const {
     riders,
@@ -463,6 +476,14 @@ export default function EventLeaderboard({
             )}
           </div>
         </Tab>
+
+        {dailyProgress && (
+          <Tab eventKey="daily" title="Daily Progress">
+            <div className="pt-0">
+              <EventDailyProgressTable data={dailyProgress} />
+            </div>
+          </Tab>
+        )}
 
         <Tab eventKey="insights" title="Insights">
           <div className="pt-0">
