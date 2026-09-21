@@ -41,7 +41,7 @@ function requireEnv(name: string): string {
  * changing the legacy format — is what keeps this app's connections visible
  * to the existing rider-metrics.ts reader and the old Angular app alike.
  */
-function toLegacyPhone(e164Phone: string): string {
+export function toLegacyPhone(e164Phone: string): string {
   return e164Phone.replace(/^\+91/, "").replace(/^\+1/, "").replace(/^\+/, "");
 }
 

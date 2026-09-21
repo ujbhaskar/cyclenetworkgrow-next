@@ -2,6 +2,7 @@ import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import type { EventCard } from "@/lib/models/event";
 import { getEventRegisteredRiders } from "@/lib/events";
+import { toLegacyPhone } from "@/lib/strava";
 import { normalizeIndianState } from "@/lib/india-states";
 import { normalizeCity } from "@/lib/registration-normalize";
 import { toNumber } from "@/lib/legacy-activity";
@@ -253,18 +254,23 @@ function eventWindowMs(startDate: string, endDate: string): { start: number; end
 export async function getEventLeaderboard(event: EventCard, limit = 500): Promise<EventLeaderboardData> {
   const { start, end } = eventWindowMs(event.startDate, event.endDate);
 
-  const [ridesSnapshot, ridersSnapshot, tokensSnapshot, registeredRiders] = await Promise.all([
+  const [ridesSnapshot, ridersSnapshot, tokensSnapshot, usersSnapshot, registeredRiders] = await Promise.all([
     adminDb.collection(RIDES_COLLECTION).get(),
     adminDb.collection(RIDERS_COLLECTION).get(),
     adminDb.collection(ATHLETE_TOKENS_COLLECTION).get(),
+    adminDb.collection("users").get(),
     getEventRegisteredRiders(event.id),
   ]);
 
   // City/state/photo: lowest priority first (this event's own registration
   // data, so even a registrant with no `riders`/`athelete_tokens` entry at
   // all still gets *something*), then the legacy `riders` collection, then
-  // athelete_tokens last (most complete/reliable source, and the only one
-  // with a profile photo) — each loop below overwrites the previous.
+  // athelete_tokens (most complete/reliable of the Strava-derived sources,
+  // and the only one with a profile photo) — each loop below overwrites the
+  // previous. `users` is last/highest priority for city/state specifically:
+  // it's the one place a rider can actually go update their own address
+  // (My Profile), so an edit there should show up on the leaderboard
+  // without needing a fresh Strava sync or registration re-import.
   //
   // Name is different: registration data wins there, applied last and
   // unconditionally, regardless of what Strava has on file — the admin's
@@ -314,6 +320,20 @@ export async function getEventLeaderboard(event: EventCard, limit = 500): Promis
     }
     if (athlete.sex === "M" || athlete.sex === "F") {
       sexByPhone.set(phone, athlete.sex);
+    }
+  });
+  usersSnapshot.docs.forEach((doc) => {
+    const data = doc.data() as { phone?: string | null; city?: string | null; state?: string | null };
+    if (!data.phone) {
+      return;
+    }
+    const phone = toLegacyPhone(data.phone);
+    if (data.city) {
+      cityByPhone.set(phone, normalizeCity(data.city));
+    }
+    const state = normalizeIndianState(data.state);
+    if (state) {
+      stateByPhone.set(phone, state);
     }
   });
   registeredRiders.forEach((rider) => {
