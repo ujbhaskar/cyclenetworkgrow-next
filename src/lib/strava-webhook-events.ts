@@ -1,6 +1,7 @@
 import "server-only";
 import { Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
+import { ATHLETE_TOKENS_COLLECTION } from "@/lib/strava-tokens";
 
 const COLLECTION = "stravaWebhookEvents";
 
@@ -10,6 +11,10 @@ export type StravaWebhookEventRow = {
   objectId: string | null;
   aspectType: string | null;
   ownerId: string | null;
+  // The rider's name off their athelete_tokens/{ownerId} doc (set at Strava
+  // connect time) — null if that owner id has no connected-rider doc, e.g.
+  // an athlete who's never linked Strava here or has since disconnected.
+  riderName: string | null;
   subscriptionId: string | null;
   receivedAt: string;
   // Set by the webhook route once it's finished processing this event —
@@ -63,7 +68,7 @@ export async function listStravaWebhookEvents(
   }
 
   const snapshot = await query.get();
-  const events = snapshot.docs.map((doc) => {
+  const rows = snapshot.docs.map((doc) => {
     const data = doc.data();
     const receivedAt = data.receivedAt instanceof Timestamp ? data.receivedAt.toDate() : new Date(data.receivedAt);
     return {
@@ -78,6 +83,27 @@ export async function listStravaWebhookEvents(
       outcomeReason: data.outcomeReason ?? null,
     };
   });
+
+  // One batched multi-get for every distinct owner id on this page, rather
+  // than a lookup per row — the same owner (an athlete mid-sync) often
+  // shows up a dozen times in a row.
+  const ownerIds = [...new Set(rows.map((row) => row.ownerId).filter((id): id is string => id !== null))];
+  const riderNameByOwnerId = new Map<string, string>();
+  if (ownerIds.length > 0) {
+    const tokenDocs = await adminDb.getAll(...ownerIds.map((id) => adminDb.collection(ATHLETE_TOKENS_COLLECTION).doc(id)));
+    for (const doc of tokenDocs) {
+      const athlete = doc.data()?.athlete as { firstname?: string; lastname?: string } | undefined;
+      const name = [athlete?.firstname, athlete?.lastname].filter(Boolean).join(" ");
+      if (name) {
+        riderNameByOwnerId.set(doc.id, name);
+      }
+    }
+  }
+
+  const events = rows.map((row) => ({
+    ...row,
+    riderName: row.ownerId ? (riderNameByOwnerId.get(row.ownerId) ?? null) : null,
+  }));
 
   const last = events[events.length - 1];
   return { events, nextCursor: events.length === limit && last ? last.receivedAt : null };

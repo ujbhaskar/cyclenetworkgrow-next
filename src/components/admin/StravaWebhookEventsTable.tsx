@@ -34,6 +34,10 @@ const OUTCOME_LABEL: Record<string, string> = {
   ignored: "Ignored",
   error: "Error",
 };
+// Not tracked (no `outcome` field, e.g. events recorded before it was
+// added) is its own filter option, not just an OUTCOME_LABEL fallback.
+const NOT_TRACKED = "__not_tracked__";
+const RESULT_FILTER_OPTIONS = [...Object.keys(OUTCOME_LABEL), NOT_TRACKED];
 
 type Filters = { ownerId: string; from: string; to: string };
 const EMPTY_FILTERS: Filters = { ownerId: "", from: "", to: "" };
@@ -60,6 +64,11 @@ export default function StravaWebhookEventsTable({
   const [error, setError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Filters>(EMPTY_FILTERS);
   const [activeFilters, setActiveFilters] = useState<Filters>(EMPTY_FILTERS);
+  // Filtered client-side against whatever page(s) are already loaded,
+  // unlike ownerId/from/to above — the Result column has few distinct
+  // values and no Firestore index for it, so there's nothing to gain from
+  // a server round trip, and it stays responsive to "Load more" too.
+  const [resultFilter, setResultFilter] = useState("");
 
   async function fetchPage(filters: Filters, afterCursor: string | null, limit: number) {
     const params = new URLSearchParams({ limit: String(limit) });
@@ -125,12 +134,17 @@ export default function StravaWebhookEventsTable({
   }
 
   const hasActiveFilters = Boolean(activeFilters.ownerId || activeFilters.from || activeFilters.to);
+  const visibleEvents = events.filter((event) => {
+    if (!resultFilter) return true;
+    if (resultFilter === NOT_TRACKED) return event.outcome === null;
+    return event.outcome === resultFilter;
+  });
 
   return (
     <div>
       <Form onSubmit={applyFilters} className="mb-4">
         <Row className="g-3 align-items-end">
-          <Col xs={12} sm={4} md={3}>
+          <Col xs={12} sm={6} md={3}>
             <Form.Label>Athlete (owner) ID</Form.Label>
             <Form.Control
               value={formValues.ownerId}
@@ -139,7 +153,7 @@ export default function StravaWebhookEventsTable({
               inputMode="numeric"
             />
           </Col>
-          <Col xs={12} sm={4} md={3}>
+          <Col xs={12} sm={6} md={3}>
             <Form.Label>From</Form.Label>
             <Form.Control
               type="datetime-local"
@@ -147,7 +161,7 @@ export default function StravaWebhookEventsTable({
               onChange={(e) => setFormValues((v) => ({ ...v, from: e.target.value }))}
             />
           </Col>
-          <Col xs={12} sm={4} md={3}>
+          <Col xs={12} sm={6} md={3}>
             <Form.Label>To</Form.Label>
             <Form.Control
               type="datetime-local"
@@ -155,7 +169,18 @@ export default function StravaWebhookEventsTable({
               onChange={(e) => setFormValues((v) => ({ ...v, to: e.target.value }))}
             />
           </Col>
-          <Col xs={12} md={3} className="d-flex gap-2">
+          <Col xs={12} sm={6} md={3}>
+            <Form.Label>Result</Form.Label>
+            <Form.Select value={resultFilter} onChange={(e) => setResultFilter(e.target.value)}>
+              <option value="">All results</option>
+              {RESULT_FILTER_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value === NOT_TRACKED ? "Not tracked" : OUTCOME_LABEL[value]}
+                </option>
+              ))}
+            </Form.Select>
+          </Col>
+          <Col xs={12} className="d-flex gap-2">
             <Button type="submit" disabled={loading}>
               Filter
             </Button>
@@ -177,13 +202,14 @@ export default function StravaWebhookEventsTable({
               <th>Object type</th>
               <th>Activity / Object ID</th>
               <th>Athlete (owner) ID</th>
+              <th>Rider</th>
               <th>Subscription</th>
               <th>Result</th>
               <th>Reason</th>
             </tr>
           </thead>
           <tbody>
-            {events.map((event) => (
+            {visibleEvents.map((event) => (
               <tr key={event.id}>
                 <td className="text-nowrap">{new Date(event.receivedAt).toLocaleString()}</td>
                 <td>
@@ -212,6 +238,7 @@ export default function StravaWebhookEventsTable({
                     "–"
                   )}
                 </td>
+                <td>{event.riderName ?? "–"}</td>
                 <td>{event.subscriptionId ?? "–"}</td>
                 <td>
                   {event.outcome ? (
@@ -231,11 +258,15 @@ export default function StravaWebhookEventsTable({
         </Table>
       </div>
 
-      {events.length === 0 && !loading && (
-        <p className="text-muted">No webhook events {hasActiveFilters ? "match those filters" : "recorded (yet)"}.</p>
+      {visibleEvents.length === 0 && !loading && (
+        <p className="text-muted">
+          No webhook events {hasActiveFilters || resultFilter ? "match those filters" : "recorded (yet)"}.
+        </p>
       )}
 
-      <div className="text-center text-muted small mb-3">Showing {events.length} events</div>
+      <div className="text-center text-muted small mb-3">
+        Showing {visibleEvents.length} of {events.length} loaded events
+      </div>
 
       {error && <p className="text-danger small text-center">{error}</p>}
 

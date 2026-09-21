@@ -528,7 +528,21 @@ export default function EventLeaderboard({
                     {rides.map((ride, index) => (
                       <tr key={ride.activityId}>
                         <td>{index + 1}</td>
-                        <td className="text-nowrap">{new Date(ride.startDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</td>
+                        <td className="text-nowrap">
+                          {/* IST explicitly, not the viewer's local timezone — this modal is
+                              for verifying exactly when a ride counted (see eventWindowMs's
+                              IST-boundary handling in rider-metrics.ts), so it should read
+                              the same for every admin/rider regardless of where they are. */}
+                          {new Date(ride.startDate).toLocaleString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: "Asia/Kolkata",
+                          })}
+                        </td>
                         <td>
                           {ride.type}
                           {ride.isVirtual && (
