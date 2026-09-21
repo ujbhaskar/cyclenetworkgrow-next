@@ -353,12 +353,29 @@ export default function EventLeaderboard({
                     {filteredRiders.length} of {riders.length} riders
                   </span>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                <Table responsive hover className="align-middle">
+                <div className="cng-leaderboard-scroll">
+                {/* Sticky header + sticky Rank/Rider columns so a mobile viewer
+                    scrolling right through the milestone columns, or down
+                    through a long roster, never loses track of who's who.
+                    The wrapper itself is the (only) scroll container in both
+                    directions — react-bootstrap's own `responsive` prop would
+                    add a second nested one, which position:sticky can't
+                    reliably straddle. */}
+                <style>{`
+                  .cng-leaderboard-scroll { overflow: auto; max-height: 70vh; overscroll-behavior: contain; }
+                  .cng-leaderboard-scroll table thead th { position: sticky; top: 0; z-index: 2; background: #fff; }
+                  .cng-leaderboard-scroll table .col-rank,
+                  .cng-leaderboard-scroll table .col-rider { position: sticky; z-index: 1; background: #fff; }
+                  .cng-leaderboard-scroll table .col-rank { left: 0; width: 44px; }
+                  .cng-leaderboard-scroll table .col-rider { left: 44px; box-shadow: 2px 0 4px -2px rgba(0,0,0,0.15); }
+                  .cng-leaderboard-scroll table thead th.col-rank,
+                  .cng-leaderboard-scroll table thead th.col-rider { z-index: 3; }
+                `}</style>
+                <Table hover className="align-middle mb-0">
                   <thead>
                     <tr>
-                      <th>Rank</th>
-                      <th>Rider</th>
+                      <th className="col-rank">Rank</th>
+                      <th className="col-rider">Rider</th>
                       <th className="text-end text-nowrap" title="Rules §6 — Distance Points + Consistency/Endurance bonuses; ranking's actual sort key">
                         Points
                       </th>
@@ -374,6 +391,7 @@ export default function EventLeaderboard({
                   <tbody>
                     {visibleRiders.map((rider, index) => {
                       const isMe = index === myRowIndex;
+                      const stickyCellStyle = isMe ? { backgroundColor: "rgba(76,175,109,0.14)" } : undefined;
                       return (
                       <tr
                         key={rider.phone}
@@ -388,8 +406,8 @@ export default function EventLeaderboard({
                         }}
                         title="View this rider's qualifying rides"
                       >
-                        <td>{index + 1}</td>
-                        <td>
+                        <td className="col-rank" style={stickyCellStyle}>{index + 1}</td>
+                        <td className="col-rider" style={stickyCellStyle}>
                           <div className="d-flex align-items-center gap-2">
                             <UserAvatar photoUrl={rider.photoUrl} />
                             <div>
@@ -438,9 +456,9 @@ export default function EventLeaderboard({
                     Loading more riders…
                   </div>
                 )}
+                </div>
                 <div className="text-center text-muted small py-2">
                   Showing {visibleRiders.length} of {filteredRiders.length} riders
-                </div>
                 </div>
               </>
             )}
