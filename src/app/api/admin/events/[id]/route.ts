@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
 import { deleteEvent, getEventAdminDetail, updateEvent } from "@/lib/events";
-import { EVENT_STATUSES } from "@/lib/models/event";
+import { ANNOUNCEMENT_VARIANTS, EVENT_STATUSES } from "@/lib/models/event";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
   if (body.status !== undefined && !EVENT_STATUSES.includes(body.status)) {
     return Response.json({ error: `status must be one of: ${EVENT_STATUSES.join(", ")}` }, { status: 400 });
+  }
+  if (body.bannerVariant !== undefined && !(ANNOUNCEMENT_VARIANTS as readonly string[]).includes(body.bannerVariant)) {
+    return Response.json({ error: `bannerVariant must be one of: ${ANNOUNCEMENT_VARIANTS.join(", ")}` }, { status: 400 });
   }
 
   await updateEvent(id, body);

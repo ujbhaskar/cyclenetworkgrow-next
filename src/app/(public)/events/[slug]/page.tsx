@@ -70,7 +70,7 @@ export default async function EventDetailPage({
 
   return (
     <div>
-      {event.bannerMessage && <AnnouncementBar message={event.bannerMessage} variant="warning" />}
+      {event.bannerMessage && <AnnouncementBar message={event.bannerMessage} variant={event.bannerVariant} />}
 
       <Container className="py-3" style={{ maxWidth: 1100 }}>
         <div className="d-flex flex-column flex-sm-row justify-content-sm-between align-items-start gap-2 mb-3">

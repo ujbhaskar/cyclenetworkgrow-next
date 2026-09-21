@@ -6,7 +6,7 @@ import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
-import { EVENT_CATEGORIES, EVENT_STATUSES, EVENT_TYPES, type EventInput } from "@/lib/models/event";
+import { ANNOUNCEMENT_VARIANTS, EVENT_CATEGORIES, EVENT_STATUSES, EVENT_TYPES, type AnnouncementVariant, type EventInput } from "@/lib/models/event";
 
 const EMPTY: EventInput = {
   name: "",
@@ -28,6 +28,7 @@ const EMPTY: EventInput = {
   status: "",
   registeredGoogleDataXLS: "",
   bannerMessage: "",
+  bannerVariant: "warning",
 };
 
 // Plain URL <-> base64 round trip, matching the legacy admin's own
@@ -71,6 +72,10 @@ function formFromInitial(event: InitialEvent): EventInput {
     status: typeof event.status === "string" ? event.status : "",
     registeredGoogleDataXLS: typeof event.registeredGoogleDataXLS === "string" ? event.registeredGoogleDataXLS : "",
     bannerMessage: typeof event.bannerMessage === "string" ? event.bannerMessage : "",
+    bannerVariant:
+      typeof event.bannerVariant === "string" && (ANNOUNCEMENT_VARIANTS as readonly string[]).includes(event.bannerVariant)
+        ? event.bannerVariant
+        : "warning",
   };
 }
 
@@ -164,6 +169,23 @@ export default function EventFormModal({
               <Form.Text className="text-muted">
                 Shown as a banner at the top of this event&apos;s public page. Leave empty to show nothing.
               </Form.Text>
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label>Banner style</Form.Label>
+              <Form.Select
+                value={form.bannerVariant ?? "warning"}
+                onChange={(e) => set("bannerVariant", e.target.value as AnnouncementVariant)}
+              >
+                {ANNOUNCEMENT_VARIANTS.map((variant) => (
+                  <option key={variant} value={variant}>
+                    {variant[0].toUpperCase() + variant.slice(1)}
+                  </option>
+                ))}
+              </Form.Select>
+              <div className={`alert alert-${form.bannerVariant || "warning"} py-2 mt-2 mb-0`}>
+                {form.bannerMessage || "Banner preview"}
+              </div>
             </Form.Group>
 
             <Row>

@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/dal";
 import { createEvent, listAllEventsForAdmin } from "@/lib/events";
 import { adminDb } from "@/lib/firebase/admin";
-import { EVENT_CATEGORIES, EVENT_STATUSES, EVENT_TYPES, type EventInput } from "@/lib/models/event";
+import { ANNOUNCEMENT_VARIANTS, EVENT_CATEGORIES, EVENT_STATUSES, EVENT_TYPES, type EventInput } from "@/lib/models/event";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +80,9 @@ export async function POST(request: Request) {
     eventType: body.eventType,
     status: body.status,
     bannerMessage: typeof body.bannerMessage === "string" ? body.bannerMessage : "",
+    bannerVariant: (ANNOUNCEMENT_VARIANTS as readonly string[]).includes(body.bannerVariant)
+      ? body.bannerVariant
+      : "warning",
   };
 
   const event = await createEvent(input);

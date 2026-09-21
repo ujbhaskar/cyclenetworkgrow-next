@@ -1,6 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
-import type { EventCard, EventDoc, EventInput } from "@/lib/models/event";
+import { ANNOUNCEMENT_VARIANTS, type EventCard, type EventDoc, type EventInput } from "@/lib/models/event";
 
 // The one events collection — same one the legacy Angular admin's own
 // add-event/edit-event forms write to (letscng-api's eventController.js).
@@ -79,6 +79,9 @@ function mapEventCard(id: string, data: EventDoc): EventCard {
     paymentLink: data.payment_link ?? null,
     rulesUrl: decodeLegacyStorageUrl(data.rules),
     bannerMessage: data.bannerMessage?.trim() || null,
+    bannerVariant: (ANNOUNCEMENT_VARIANTS as readonly string[]).includes(data.bannerVariant ?? "")
+      ? (data.bannerVariant as EventCard["bannerVariant"])
+      : "warning",
   };
 }
 

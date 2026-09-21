@@ -16,6 +16,10 @@
 // Endurance or online event never wipes them — this app's own admin form
 // just doesn't expose UI for those two sub-forms yet.
 
+import { ANNOUNCEMENT_VARIANTS, type AnnouncementVariant } from "@/lib/models/site-announcement";
+export { ANNOUNCEMENT_VARIANTS };
+export type { AnnouncementVariant };
+
 export const EVENT_CATEGORIES = ["east-endurance", "1177", "aw80d", "rising-star", "special", "purchase"] as const;
 export type EventCategory = (typeof EVENT_CATEGORIES)[number];
 
@@ -54,6 +58,11 @@ export type EventDoc = {
   // page (e.g. "registration closes 21st Sept") — plain text, not part of
   // the legacy schema, blank/absent means no banner.
   bannerMessage?: string;
+  // Bootstrap alert style for the above — same variant set as the home
+  // page's site-wide announcements. Absent (older docs, predating this
+  // field) defaults to "warning", matching this banner's original
+  // hardcoded look.
+  bannerVariant?: string;
   riders?: Record<string, unknown>;
   eastEnduranceRules?: unknown;
   configuration?: unknown;
@@ -81,6 +90,7 @@ export type EventInput = {
   status: string;
   registeredGoogleDataXLS?: string;
   bannerMessage?: string;
+  bannerVariant?: string;
 };
 
 // Display-ready shape for the public home page.
@@ -103,4 +113,5 @@ export type EventCard = {
   paymentLink: string | null;
   rulesUrl: string | null;
   bannerMessage: string | null;
+  bannerVariant: AnnouncementVariant;
 };
