@@ -107,13 +107,19 @@ export type CandidateActivity = {
 };
 
 /**
- * Fetches one rider's recent Strava activities and filters to the same
- * candidate-ride criteria the legacy admin's "Pull Missing Rides" page used
- * (PullMissingRidesComponent.filterRides): Ride/VirtualRide, not manual,
- * not from a tagged activity, at least minDistanceKm. A preview step —
+ * Fetches one rider's recent Strava activities and filters to Ride/
+ * VirtualRide activities of at least minDistanceKm. A preview step —
  * nothing is written yet, see syncActivitiesToRides. Looked up by phone or
  * by Strava athlete id — whichever the admin has on hand — exactly one of
  * `identifier.phone`/`identifier.athleteId` should be set.
+ *
+ * Manual entries and activities created from a tagged/accepted activity
+ * are included here (unlike the live webhook, which discards them
+ * automatically) rather than silently dropped — this is a human-reviewed
+ * tool, so the admin sees them, sees why they're flagged (CandidateActivity's
+ * own `manual`/`fromAcceptedTag` fields), and decides per-ride whether to
+ * include them via the UI's checkboxes rather than losing that judgment
+ * call to an automatic filter.
  */
 export async function fetchCandidateRides(
   identifier: { phone?: string; athleteId?: string },
@@ -147,9 +153,9 @@ export async function fetchCandidateRides(
     .filter(
       (activity) =>
         Number(activity.distance) > minDistanceKm * 1000 &&
-        activity.manual === false &&
-        (activity.type === "Ride" || activity.type === "VirtualRide") &&
-        activity.from_accepted_tag !== true,
+        (activity.type === "Ride" || activity.type === "VirtualRide"),
+      // Manual entries and from_accepted_tag activities are deliberately
+      // NOT filtered out here — see this function's own doc comment.
     )
     .map(
       (activity): CandidateActivity => ({

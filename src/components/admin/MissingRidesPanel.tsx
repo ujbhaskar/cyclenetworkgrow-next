@@ -105,7 +105,17 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
       setAthleteId(body.athleteId);
       setResolvedPhone(body.phone);
       setActivities(body.activities);
-      setSelected(new Set(body.activities.map((a: CandidateActivity) => a.id)));
+      // Pre-select the clean candidates; manual entries and tagged/
+      // duplicate activities are shown (see fetchCandidateRides) but start
+      // unchecked — an admin has to look at why each is flagged and
+      // explicitly opt it in, rather than syncing it by default.
+      setSelected(
+        new Set(
+          body.activities
+            .filter((a: CandidateActivity) => !a.manual && !a.fromAcceptedTag)
+            .map((a: CandidateActivity) => a.id),
+        ),
+      );
     } else {
       setAthleteId(null);
       setResolvedPhone(null);
@@ -277,6 +287,10 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
             </Button>
             <div>Fetched activities:</div>
           </div>
+          <p className="text-muted small">
+            Rows highlighted in red are manually-entered or duplicate-tagged activities — shown for your review
+            rather than hidden, but unchecked by default. Confirm they&apos;re legitimate before including them.
+          </p>
           <Table responsive striped bordered hover size="sm" className="text-center align-middle">
             <thead>
               <tr>
@@ -296,6 +310,8 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
                 <th>Elapsed Time</th>
                 <th>Elapsed/Moving</th>
                 <th>Flagged</th>
+                <th>Manual</th>
+                <th>Duplicate</th>
                 <th>Start Date</th>
               </tr>
             </thead>
@@ -306,7 +322,7 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
                 const overRatioLimit = ratio !== null && ratio > rideRules.elapsedToMovingRatioMax;
                 const overVirtualDistanceLimit = isVirtual && activity.distanceKm > rideRules.maxVirtualRideDistanceKm;
                 return (
-                  <tr key={activity.id}>
+                  <tr key={activity.id} className={activity.manual || activity.fromAcceptedTag ? "table-danger" : ""}>
                     <td>
                       <Form.Check
                         type="checkbox"
@@ -338,6 +354,8 @@ export default function MissingRidesPanel({ rideRules }: { rideRules: RideRulesC
                       {ratio !== null ? `${ratio.toFixed(2)}x` : "—"}
                     </td>
                     <td>{activity.flagged && <Badge bg="warning">Flagged</Badge>}</td>
+                    <td>{activity.manual && <Badge bg="danger">Manual</Badge>}</td>
+                    <td>{activity.fromAcceptedTag && <Badge bg="danger">Duplicate</Badge>}</td>
                     <td>{new Date(activity.startDate).toLocaleString()}</td>
                   </tr>
                 );
