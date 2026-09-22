@@ -50,7 +50,12 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  // Defaults to checked — most riders expect staying logged in on their own
+  // device/browser to be the normal case, not something they have to opt
+  // into. Unchecked gives a session-only cookie (cleared when the browser
+  // fully closes, see /api/auth/session's rememberMe handling) for anyone
+  // on a shared/public computer who explicitly opts out.
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
