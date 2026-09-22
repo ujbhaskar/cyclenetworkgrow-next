@@ -147,9 +147,14 @@ Payment Page export into a tab of a shared Google Sheet, then triggers a sync fr
   panel reads) — one tab per event edition, tab name = that event's
   `registeredGoogleDataXLS` field on its `events/{id}` doc.
 - **This is the one deliberate exception to `src/lib/events.ts`'s "never write to the
-  legacy `events` collection" rule** — the sync REPLACES an event's whole `riders` map
-  (matching the legacy admin's exact behavior), not a merge. See the comments on
-  `LEGACY_COLLECTION` and `syncEventRegistrationsFromSheet` before changing either.
+  legacy `events` collection" rule.** The admin flow is preview-then-confirm, not the
+  legacy admin's one-click full replace: `previewNewRiderRegistrations` diffs the sheet
+  against the event's current `riders` map (read-only) and returns just the new phones;
+  `addNewRiderRegistrations` merges only those confirmed phones in, leaving every already-
+  registered rider's entry untouched — including manual corrections made from the
+  registrations page's edit modal (`updateEventRiderByAdmin`), which a full-replace sync
+  would otherwise wipe out on the next run. See the comments on both in
+  `src/lib/legacy-registrations.ts` before changing either.
 
 ## Supporting config (committed)
 

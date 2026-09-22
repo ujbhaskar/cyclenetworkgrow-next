@@ -34,31 +34,44 @@ export type RegistrationSyncResult = {
   matchedWithStrava: number;
 };
 
+export type NewRiderPreview = RegistrationSyncResult & {
+  /** How many riders are already registered for this event, before adding anything. */
+  existingRiderCount: number;
+  /** Sheet registrations not already present in the event's riders map, by phone. */
+  newRiders: EventRider[];
+};
+
+// The actual Firestore-bound shape for a synced registration — a superset
+// of the public EventRider (adds the Strava access/refresh tokens the
+// legacy schema stores inline on each rider entry). Never send this raw
+// shape to the browser; see toPublicRider below.
+type StoredEventRider = EventRider & { access_token: string; refresh_token: string };
+
+function toPublicRider(rider: StoredEventRider): EventRider {
+  return {
+    phone: rider.phone,
+    full_name: rider.full_name,
+    gender: rider.gender,
+    city: rider.city,
+    state: rider.state,
+    stravaId: rider.stravaId,
+    profile: rider.profile,
+  };
+}
+
 /**
- * Rebuilds one legacy event's `riders` map from its configured registration
- * sheet (`registeredGoogleDataXLS`), cross-referencing each phone against
- * every Strava-connected rider on the platform for their athlete id/profile/
- * tokens — mirrors the legacy Angular admin's "Sync users from
- * registrations" button (OnlineEventAddUserComponent.addUsersToEvent)
- * exactly, including its behavior of REPLACING the whole `riders` map
- * rather than merging into it. That means a rider added some other way
- * (e.g. manually, outside the registration sheet) would be wiped out by a
- * resync — not guarded against here on purpose, to match the existing
- * workflow rather than silently changing it.
+ * Reads the sheet and rebuilds every registration as a StoredEventRider,
+ * cross-referencing each phone against every Strava-connected rider on the
+ * platform for their athlete id/profile/tokens — the shared computation
+ * behind both previewNewRiderRegistrations and addNewRiderRegistrations.
+ * Read-only: never touches Firestore's `events` doc.
  */
-export async function syncEventRegistrationsFromSheet(eventId: string): Promise<RegistrationSyncResult> {
-  const docRef = adminDb.collection(EVENTS_COLLECTION).doc(eventId);
-  const doc = await docRef.get();
-  if (!doc.exists) {
-    throw new Error("Event not found");
-  }
-
-  const data = doc.data() as EventDoc;
-  const sheetName = data.registeredGoogleDataXLS;
-  if (!sheetName) {
-    throw new Error("This event has no registration sheet configured (registeredGoogleDataXLS)");
-  }
-
+async function buildRidersFromSheet(sheetName: string): Promise<{
+  rows: Record<string, string>[];
+  captured: Record<string, string>[];
+  riders: Record<string, StoredEventRider>;
+  matchedWithStrava: number;
+}> {
   const rows = await getSheetRows(sheetName);
   const captured = rows.filter((row) => row["payment status"] === "captured");
 
@@ -111,7 +124,7 @@ export async function syncEventRegistrationsFromSheet(eventId: string): Promise<
     });
   });
 
-  const riders: Record<string, unknown> = {};
+  const riders: Record<string, StoredEventRider> = {};
   let matchedWithStrava = 0;
   registrations.forEach((registration) => {
     const strava = stravaByPhone.get(registration.phone);
@@ -139,16 +152,83 @@ export async function syncEventRegistrationsFromSheet(eventId: string): Promise<
     };
   });
 
-  await docRef.update({ riders });
-  invalidateEventLeaderboardCache();
+  return { rows, captured, riders, matchedWithStrava };
+}
+
+async function getEventDocOrThrow(eventId: string) {
+  const docRef = adminDb.collection(EVENTS_COLLECTION).doc(eventId);
+  const doc = await docRef.get();
+  if (!doc.exists) {
+    throw new Error("Event not found");
+  }
+  const data = doc.data() as EventDoc;
+  const sheetName = data.registeredGoogleDataXLS;
+  if (!sheetName) {
+    throw new Error("This event has no registration sheet configured (registeredGoogleDataXLS)");
+  }
+  const existingRiders = (data.riders as Record<string, EventRider> | undefined) ?? {};
+  return { docRef, sheetName, existingRiders };
+}
+
+/**
+ * Diffs the registration sheet against this event's CURRENT riders map —
+ * read-only, no write — so an admin can see exactly who a sync would add
+ * before anything actually changes. Doesn't flag riders whose sheet data
+ * differs from what's already stored (e.g. after a manual correction via
+ * updateEventRiderByAdmin); only phones missing from the map entirely
+ * count as "new". See addNewRiderRegistrations for the confirm step.
+ */
+export async function previewNewRiderRegistrations(eventId: string): Promise<NewRiderPreview> {
+  const { sheetName, existingRiders } = await getEventDocOrThrow(eventId);
+  const { rows, captured, riders, matchedWithStrava } = await buildRidersFromSheet(sheetName);
+
+  const newRiders = Object.values(riders)
+    .filter((rider) => !existingRiders[rider.phone])
+    .map(toPublicRider)
+    .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
 
   return {
     sheetName,
     totalRows: rows.length,
     capturedRows: captured.length,
-    uniqueRegistrations: registrations.length,
+    uniqueRegistrations: Object.keys(riders).length,
     matchedWithStrava,
+    existingRiderCount: Object.keys(existingRiders).length,
+    newRiders,
   };
+}
+
+/**
+ * Adds exactly the given phones' sheet registrations to this event's
+ * riders map — everyone else's entry (including any manual corrections
+ * via updateEventRiderByAdmin) is left untouched, unlike the old
+ * behavior this replaces (REPLACING the whole map every sync, matching
+ * the legacy Angular admin's "Sync users from registrations" button —
+ * that wiped out manual edits on every resync). Re-reads the sheet fresh
+ * rather than trusting rider field values from the client — `phones` is
+ * only used to select which of THIS event's already-registered-elsewhere
+ * riders to admit, and re-validated against the current riders map in
+ * case it changed since the preview was shown.
+ */
+export async function addNewRiderRegistrations(eventId: string, phones: string[]): Promise<{ added: number }> {
+  const { docRef, sheetName, existingRiders } = await getEventDocOrThrow(eventId);
+  const { riders } = await buildRidersFromSheet(sheetName);
+
+  const requested = new Set(phones.map((phone) => cleanPhone(phone)).filter(Boolean));
+  const updates: Record<string, StoredEventRider> = {};
+  Object.values(riders).forEach((rider) => {
+    if (requested.has(rider.phone) && !existingRiders[rider.phone]) {
+      updates[`riders.${rider.phone}`] = rider;
+    }
+  });
+
+  const added = Object.keys(updates).length;
+  if (added > 0) {
+    await docRef.update(updates);
+    invalidateEventLeaderboardCache();
+  }
+
+  return { added };
 }
 
 /**
