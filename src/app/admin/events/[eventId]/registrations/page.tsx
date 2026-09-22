@@ -25,7 +25,7 @@ export default async function AdminEventRegistrationsPage({
       </div>
 
       <h2 className="h5 mb-3">Current Riders</h2>
-      <LegacyRidersTable riders={event.riders} />
+      <LegacyRidersTable eventId={event.id} riders={event.riders} />
     </div>
   );
 }

@@ -3,8 +3,12 @@
 import { useMemo, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
+import Button from "react-bootstrap/Button";
+import Toast from "react-bootstrap/Toast";
+import ToastContainer from "react-bootstrap/ToastContainer";
 import type { EventRider } from "@/lib/events";
 import { normalizeCity, normalizeCasing, normalizeGender } from "@/lib/registration-normalize";
+import EditEventRiderModal from "./EditEventRiderModal";
 
 type StravaFilter = "all" | "connected" | "unregistered";
 
@@ -24,31 +28,41 @@ function riderGender(rider: EventRider): string {
   return rider.gender ? normalizeGender(rider.gender) : "";
 }
 
-export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) {
+export default function LegacyRidersTable({ eventId, riders: initialRiders }: { eventId: string; riders: EventRider[] }) {
+  const [riders, setRiders] = useState(initialRiders);
+  const [query, setQuery] = useState("");
   const [stateFilter, setStateFilter] = useState(ALL);
   const [cityFilter, setCityFilter] = useState(ALL);
   const [genderFilter, setGenderFilter] = useState(ALL);
   const [stravaFilter, setStravaFilter] = useState<StravaFilter>("all");
+  const [editingRider, setEditingRider] = useState<EventRider | null>(null);
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   const states = useMemo(() => [...new Set(riders.map(riderState).filter(Boolean))].sort(), [riders]);
   const cities = useMemo(() => [...new Set(riders.map(riderCity).filter(Boolean))].sort(), [riders]);
   const genders = useMemo(() => [...new Set(riders.map(riderGender).filter(Boolean))].sort(), [riders]);
 
-  const filtered = useMemo(
-    () =>
-      riders
-        .filter((rider) => {
-          if (stateFilter !== ALL && riderState(rider) !== stateFilter) return false;
-          if (cityFilter !== ALL && riderCity(rider) !== cityFilter) return false;
-          if (genderFilter !== ALL && riderGender(rider) !== genderFilter) return false;
-          const connected = Boolean(rider.stravaId);
-          if (stravaFilter === "connected" && !connected) return false;
-          if (stravaFilter === "unregistered" && connected) return false;
-          return true;
-        })
-        .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "")),
-    [riders, stateFilter, cityFilter, genderFilter, stravaFilter],
-  );
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return riders
+      .filter((rider) => {
+        if (q && !(rider.full_name ?? "").toLowerCase().includes(q) && !rider.phone.includes(q)) return false;
+        if (stateFilter !== ALL && riderState(rider) !== stateFilter) return false;
+        if (cityFilter !== ALL && riderCity(rider) !== cityFilter) return false;
+        if (genderFilter !== ALL && riderGender(rider) !== genderFilter) return false;
+        const connected = Boolean(rider.stravaId);
+        if (stravaFilter === "connected" && !connected) return false;
+        if (stravaFilter === "unregistered" && connected) return false;
+        return true;
+      })
+      .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
+  }, [riders, query, stateFilter, cityFilter, genderFilter, stravaFilter]);
+
+  function handleRiderSaved(previousPhone: string, updated: EventRider) {
+    setRiders((list) => list.map((r) => (r.phone === previousPhone ? updated : r)));
+    setEditingRider(null);
+    setSavedToast(`${updated.full_name || "Rider"}'s details were updated.`);
+  }
 
   // Metrics reflect the currently filtered set, so narrowing by state/city/
   // gender/Strava status updates the counts too, not just the table rows.
@@ -103,6 +117,13 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
       </div>
 
       <div className="d-flex flex-wrap gap-3 mb-3">
+        <Form.Control
+          style={{ width: 220 }}
+          size="sm"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name or phone…"
+        />
         <Form.Select style={{ width: 200 }} size="sm" value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
           <option value={ALL}>All states</option>
           {states.map((state) => (
@@ -154,6 +175,7 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
               <th>Gender</th>
               <th>Location</th>
               <th>Strava Athlete Id</th>
+              <th />
             </tr>
           </thead>
           <tbody>
@@ -173,11 +195,21 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
                     "—"
                   )}
                 </td>
+                <td>
+                  <Button
+                    size="sm"
+                    variant="outline-secondary"
+                    onClick={() => setEditingRider(rider)}
+                    title="Fix this rider's name/city/state/phone"
+                  >
+                    <i className="bi bi-pencil" aria-hidden />
+                  </Button>
+                </td>
               </tr>
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-muted text-center py-4">
+                <td colSpan={7} className="text-muted text-center py-4">
                   No riders match these filters.
                 </td>
               </tr>
@@ -185,6 +217,20 @@ export default function LegacyRidersTable({ riders }: { riders: EventRider[] }) 
           </tbody>
         </Table>
       </div>
+
+      <EditEventRiderModal
+        key={editingRider?.phone}
+        eventId={eventId}
+        rider={editingRider}
+        onClose={() => setEditingRider(null)}
+        onSaved={handleRiderSaved}
+      />
+
+      <ToastContainer position="top-center" className="p-3" style={{ zIndex: 1100 }}>
+        <Toast bg="success" onClose={() => setSavedToast(null)} show={!!savedToast} delay={3000} autohide>
+          <Toast.Body className="text-white">{savedToast}</Toast.Body>
+        </Toast>
+      </ToastContainer>
     </div>
   );
 }

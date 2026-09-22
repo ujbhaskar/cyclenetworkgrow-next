@@ -1,7 +1,8 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { getSheetRows } from "@/lib/googleSheets";
-import { EVENTS_COLLECTION } from "@/lib/events";
+import { EVENTS_COLLECTION, type EventRider } from "@/lib/events";
 import type { EventDoc } from "@/lib/models/event";
 import { normalizeState } from "@/lib/india-states";
 import { cleanPhone, normalizeName, normalizeCity, normalizeGender } from "@/lib/registration-normalize";
@@ -148,4 +149,70 @@ export async function syncEventRegistrationsFromSheet(eventId: string): Promise<
     uniqueRegistrations: registrations.length,
     matchedWithStrava,
   };
+}
+
+/**
+ * Corrects one rider's registration record directly — for the typos
+ * riders themselves can't easily fix (they don't have a login to a
+ * registration sheet, and correcting the sheet doesn't retroactively fix
+ * past syncs anyway). Only touches this one entry in the event's `riders`
+ * map; unlike syncEventRegistrationsFromSheet, everyone else's entry is
+ * left exactly as-is.
+ *
+ * Deliberately does NOT touch the separate top-level `rides/{phone}`
+ * collection when phone changes — a rider's already-synced ride history
+ * stays filed under their old phone number. This is a known, accepted
+ * limitation (see the admin UI's own note) rather than an oversight: doing
+ * that safely means merging two `rides` docs, which is a bigger, riskier
+ * operation than a registration-record fix warrants on its own.
+ */
+export async function updateEventRiderByAdmin(
+  eventId: string,
+  currentPhone: string,
+  fields: { full_name?: string; city?: string; state?: string; phone?: string },
+): Promise<EventRider> {
+  const ref = adminDb.collection(EVENTS_COLLECTION).doc(eventId);
+  const doc = await ref.get();
+  if (!doc.exists) {
+    throw new Error("Event not found");
+  }
+  const data = doc.data() as EventDoc;
+  const riders = (data.riders as Record<string, EventRider> | undefined) ?? {};
+  const existing = riders[currentPhone];
+  if (!existing) {
+    throw new Error("Rider not found in this event's registration list");
+  }
+
+  const newPhone = fields.phone ? cleanPhone(fields.phone) : currentPhone;
+  if (!newPhone) {
+    throw new Error("That doesn't look like a valid phone number");
+  }
+  if (newPhone !== currentPhone && riders[newPhone]) {
+    throw new Error("Another registered rider already has that phone number");
+  }
+
+  const updated: EventRider = {
+    ...existing,
+    phone: newPhone,
+    full_name: fields.full_name !== undefined ? normalizeName(fields.full_name) : existing.full_name,
+    city: fields.city !== undefined ? normalizeCity(fields.city) : existing.city,
+    state: fields.state !== undefined ? normalizeState(fields.state) : existing.state,
+  };
+
+  // Keep the map's own key in sync with `.phone` — nothing downstream
+  // (getEventRegisteredRiders, the leaderboard, the webhook's participant
+  // lookup) actually reads this key, only Object.values() and the `.phone`
+  // field on each value, but keeping them aligned means a rider can be
+  // edited again later by this same currentPhone-lookup approach.
+  if (newPhone !== currentPhone) {
+    await ref.update({
+      [`riders.${currentPhone}`]: FieldValue.delete(),
+      [`riders.${newPhone}`]: updated,
+    });
+  } else {
+    await ref.update({ [`riders.${currentPhone}`]: updated });
+  }
+  invalidateEventLeaderboardCache();
+
+  return updated;
 }
