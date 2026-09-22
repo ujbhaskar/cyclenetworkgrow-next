@@ -66,12 +66,15 @@ use, keyed by the legacy bare-digit phone format.
 
 Strava allows only **one push subscription per Client ID, globally** — same sharing
 caveat as everything else Strava-related here (see the admin Strava Subscription page).
-Every event received is recorded to `stravaWebhookEvents` regardless of whether it goes
-on to create/update/delete a ride (raw audit trail — lets a failed/skipped event be
-inspected or manually replayed). That collection has a **Firestore TTL policy on its
-`expiresAt` field** (7 days after `receivedAt`, set by the route itself), so it doesn't
-grow forever — this is debug/audit data, not ride data (`rides/{phone}` is untouched by
-the TTL and never expires). Created with:
+Only `aspect_type: "create"` events get an audit doc in `stravaWebhookEvents` — "update"
+events and non-activity events (athlete deauthorization, etc.) are still processed but
+not logged, since they made up most of this collection's write/storage volume for
+little audit value; "delete" events still remove the ride from `rides`, just without a
+doc of their own. That collection has a **Firestore TTL policy on its `expiresAt`
+field** (2 days after `receivedAt`, set by the route itself), so it doesn't grow
+forever — this is debug/audit data, not ride data (`rides/{phone}` is untouched by the
+TTL and never expires). An admin can also clear the whole collection on demand from the
+Strava Webhook Events admin page. Created with:
 
 ```bash
 gcloud firestore fields ttls update expiresAt \

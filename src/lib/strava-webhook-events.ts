@@ -108,3 +108,32 @@ export async function listStravaWebhookEvents(
   const last = events[events.length - 1];
   return { events, nextCursor: events.length === limit && last ? last.receivedAt : null };
 }
+
+/**
+ * Total row count — an aggregation query (billed as a handful of reads
+ * regardless of collection size, not one read per document), so this is
+ * cheap to show alongside the table even as the collection grows.
+ */
+export async function getStravaWebhookEventCount(): Promise<number> {
+  const snapshot = await adminDb.collection(COLLECTION).count().get();
+  return snapshot.data().count;
+}
+
+// Firestore batched writes cap at 500 operations.
+const DELETE_BATCH_SIZE = 500;
+
+/**
+ * Wipes the whole audit log on demand (the admin page's "Clear all"
+ * button) — irreversible, same as the ride-cleanup tool. listDocuments()
+ * rather than get() since deleting only needs each doc's reference, not
+ * its data.
+ */
+export async function deleteAllStravaWebhookEvents(): Promise<{ deleted: number }> {
+  const refs = await adminDb.collection(COLLECTION).listDocuments();
+  for (let i = 0; i < refs.length; i += DELETE_BATCH_SIZE) {
+    const batch = adminDb.batch();
+    refs.slice(i, i + DELETE_BATCH_SIZE).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+  return { deleted: refs.length };
+}

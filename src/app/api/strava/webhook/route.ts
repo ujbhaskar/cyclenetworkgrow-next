@@ -173,20 +173,25 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
-  // Awaited (unlike the fire-and-forget it used to be) so outcome/reason
-  // below can be written onto this exact doc — the admin viewer's
-  // "accepted vs discarded, and why" column. Still just one small write;
-  // the Strava API calls in between dominate this request's latency
-  // either way. expiresAt drives this collection's TTL policy (see
+  // Only "create" events get an audit doc — "update" events and
+  // non-activity events (athlete deauthorization, etc.) carry little
+  // audit value and were the bulk of this collection's write/storage
+  // volume; "delete" events are still fully processed below (a ride is
+  // still removed from `rides`), just not logged. Awaited (unlike the
+  // fire-and-forget it used to be) so outcome/reason below can be written
+  // onto this exact doc — the admin viewer's "accepted vs discarded, and
+  // why" column. expiresAt drives this collection's TTL policy (see
   // docs/DEPLOY.md) so the audit log doesn't grow forever.
   const receivedAt = new Date();
   let eventDoc: DocumentReference | null = null;
-  try {
-    eventDoc = await adminDb
-      .collection("stravaWebhookEvents")
-      .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 7 * 24 * 60 * 60 * 1000) });
-  } catch (err) {
-    console.error("[strava webhook] failed to record event:", err);
+  if (event.object_type === "activity" && event.aspect_type === "create") {
+    try {
+      eventDoc = await adminDb
+        .collection("stravaWebhookEvents")
+        .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 2 * 24 * 60 * 60 * 1000) });
+    } catch (err) {
+      console.error("[strava webhook] failed to record event:", err);
+    }
   }
 
   async function finish(result: Outcome) {

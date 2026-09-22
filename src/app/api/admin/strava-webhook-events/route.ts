@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth/dal";
-import { listStravaWebhookEvents } from "@/lib/strava-webhook-events";
+import { adminDb } from "@/lib/firebase/admin";
+import { listStravaWebhookEvents, getStravaWebhookEventCount, deleteAllStravaWebhookEvents } from "@/lib/strava-webhook-events";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ const MAX_LIMIT = 200;
  *         description: ISO datetime — only events received at or before this.
  *     responses:
  *       200:
- *         description: "{ events: [...], nextCursor: string | null }"
+ *         description: "{ events: [...], nextCursor: string | null, totalCount: number }"
  */
 export async function GET(request: Request) {
   await requireRole("admin");
@@ -54,6 +55,38 @@ export async function GET(request: Request) {
   const from = url.searchParams.get("from") || undefined;
   const to = url.searchParams.get("to") || undefined;
 
-  const page = await listStravaWebhookEvents(cursor, limit, { ownerId, from, to });
-  return Response.json(page);
+  const [page, totalCount] = await Promise.all([
+    listStravaWebhookEvents(cursor, limit, { ownerId, from, to }),
+    getStravaWebhookEventCount(),
+  ]);
+  return Response.json({ ...page, totalCount });
+}
+
+/**
+ * @swagger
+ * /api/admin/strava-webhook-events:
+ *   delete:
+ *     summary: Wipe the entire Strava webhook audit log
+ *     description: Irreversible — the "Clear all records" button on the admin page.
+ *     tags:
+ *       - Admin
+ *       - Strava
+ *     security:
+ *       - sessionCookie: []
+ *     responses:
+ *       200:
+ *         description: "{ deleted: number }"
+ */
+export async function DELETE() {
+  const session = await requireRole("admin");
+
+  const result = await deleteAllStravaWebhookEvents();
+  await adminDb.collection("auditLog").add({
+    actorUid: session.uid,
+    action: "admin_cleared_strava_webhook_events",
+    deleted: result.deleted,
+    timestamp: new Date().toISOString(),
+  });
+
+  return Response.json(result);
 }

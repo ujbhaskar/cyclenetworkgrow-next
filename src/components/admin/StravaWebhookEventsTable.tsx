@@ -54,13 +54,17 @@ function toIso(datetimeLocalValue: string): string | undefined {
 export default function StravaWebhookEventsTable({
   initialEvents,
   initialCursor,
+  initialTotalCount,
 }: {
   initialEvents: StravaWebhookEventRow[];
   initialCursor: string | null;
+  initialTotalCount: number;
 }) {
   const [events, setEvents] = useState(initialEvents);
   const [cursor, setCursor] = useState(initialCursor);
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [loading, setLoading] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Filters>(EMPTY_FILTERS);
   const [activeFilters, setActiveFilters] = useState<Filters>(EMPTY_FILTERS);
@@ -83,7 +87,30 @@ export default function StravaWebhookEventsTable({
     if (!res.ok) {
       throw new Error("Failed to load events");
     }
-    return (await res.json()) as { events: StravaWebhookEventRow[]; nextCursor: string | null };
+    return (await res.json()) as { events: StravaWebhookEventRow[]; nextCursor: string | null; totalCount: number };
+  }
+
+  async function clearAll() {
+    if (!confirm(`Permanently delete all ${totalCount.toLocaleString()} webhook event records? This can't be undone.`)) {
+      return;
+    }
+    setClearing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/strava-webhook-events", { method: "DELETE" });
+      if (!res.ok) {
+        throw new Error("Failed to clear events");
+      }
+      setEvents([]);
+      setCursor(null);
+      setTotalCount(0);
+      setActiveFilters(EMPTY_FILTERS);
+      setFormValues(EMPTY_FILTERS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear events");
+    } finally {
+      setClearing(false);
+    }
   }
 
   async function applyFilters(e: FormEvent) {
@@ -94,6 +121,7 @@ export default function StravaWebhookEventsTable({
       const page = await fetchPage(formValues, null, PAGE_SIZE);
       setEvents(page.events);
       setCursor(page.nextCursor);
+      setTotalCount(page.totalCount);
       setActiveFilters(formValues);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
@@ -110,6 +138,7 @@ export default function StravaWebhookEventsTable({
       const page = await fetchPage(EMPTY_FILTERS, null, PAGE_SIZE);
       setEvents(page.events);
       setCursor(page.nextCursor);
+      setTotalCount(page.totalCount);
       setActiveFilters(EMPTY_FILTERS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
@@ -126,6 +155,7 @@ export default function StravaWebhookEventsTable({
       const page = await fetchPage(activeFilters, cursor, LOAD_MORE_SIZE);
       setEvents((prev) => [...prev, ...page.events]);
       setCursor(page.nextCursor);
+      setTotalCount(page.totalCount);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load more events");
     } finally {
@@ -142,6 +172,17 @@ export default function StravaWebhookEventsTable({
 
   return (
     <div>
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <span className="text-muted">
+          <strong>{totalCount.toLocaleString()}</strong> total record{totalCount === 1 ? "" : "s"} in the database
+        </span>
+        {totalCount > 0 && (
+          <Button variant="outline-danger" size="sm" onClick={clearAll} disabled={clearing}>
+            {clearing ? "Clearing…" : "Clear all records"}
+          </Button>
+        )}
+      </div>
+
       <Form onSubmit={applyFilters} className="mb-4">
         <Row className="g-3 align-items-end">
           <Col xs={12} sm={6} md={3}>
