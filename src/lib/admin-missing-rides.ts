@@ -9,6 +9,9 @@ const RIDES_COLLECTION = "rides";
 
 const STRAVA_ACTIVITIES_URL = "https://www.strava.com/api/v3/athlete/activities";
 
+// India Standard Time, UTC+5:30 — see fetchCandidateRides' use below.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
 export type RiderSearchResult = {
   athleteId: string;
   name: string;
@@ -140,7 +143,14 @@ export async function fetchCandidateRides(
   }
   const accessToken = await getValidStravaAccessToken(found.athleteId, found.data);
 
-  const afterEpoch = Math.floor(new Date(afterDate).getTime() / 1000);
+  // afterDate is a bare "YYYY-MM-DD" from a plain HTML date input, no
+  // timezone — `new Date(afterDate)` alone parses that as UTC midnight
+  // (5:30am IST). Every rider is in India, so left uncorrected, Strava's
+  // own `after` filter would silently exclude that day's early-morning
+  // rides before they ever reach this function's distance/type checks —
+  // same bug already fixed as istMidnight() in events.ts / eventWindowMs()
+  // in rider-metrics.ts.
+  const afterEpoch = Math.floor((new Date(afterDate).getTime() - IST_OFFSET_MS) / 1000);
   const res = await fetch(`${STRAVA_ACTIVITIES_URL}?after=${afterEpoch}&per_page=80`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
