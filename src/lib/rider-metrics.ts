@@ -56,6 +56,7 @@ type LegacyActivity = {
   total_elevation_gain?: number | string;
   type?: string;
   start_date?: string;
+  elapsed_time?: number | string;
   flagged?: boolean;
   trainer?: boolean;
 };
@@ -187,7 +188,16 @@ function getQualifyingRides(
       return;
     }
     const rideTime = activity.start_date ? new Date(activity.start_date).getTime() : NaN;
-    if (Number.isNaN(rideTime) || rideTime < start || rideTime > end) {
+    if (Number.isNaN(rideTime) || rideTime < start) {
+      return;
+    }
+    // A ride that starts inside the window but runs past it doesn't
+    // qualify — it has to actually finish (start + elapsed time) before
+    // the event's end instant, not just start before it. toNumber()
+    // defensively covers elapsed_time missing on older synced activities
+    // (treated as instantaneous, so only start time gates them).
+    const rideEndTime = rideTime + toNumber(activity.elapsed_time) * 1000;
+    if (rideEndTime > end) {
       return;
     }
 
