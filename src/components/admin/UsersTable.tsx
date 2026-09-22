@@ -10,6 +10,7 @@ import ToastContainer from "react-bootstrap/ToastContainer";
 import { ROLES, type Role, type UserProfile } from "@/lib/models/user";
 import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import CreateUserModal from "./CreateUserModal";
+import EditUserModal from "./EditUserModal";
 import ImpersonateButton from "./ImpersonateButton";
 
 export default function UsersTable({
@@ -22,7 +23,9 @@ export default function UsersTable({
   const [users, setUsers] = useState(initialUsers);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
+  const [profileSavedToast, setProfileSavedToast] = useState<string | null>(null);
 
   const [nameFilter, setNameFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
@@ -79,6 +82,12 @@ export default function UsersTable({
     }
     const user = previous.find((u) => u.uid === uid);
     setRoleChangeToast(`${user?.displayName ?? "User"}'s role changed to ${role}.`);
+  }
+
+  function handleProfileSaved(updated: Partial<UserProfile> & { uid: string }) {
+    setUsers((list) => list.map((u) => (u.uid === updated.uid ? { ...u, ...updated } : u)));
+    setEditingUser(null);
+    setProfileSavedToast(`${updated.displayName ?? "User"}'s details were updated.`);
   }
 
   async function handleDelete(uid: string) {
@@ -171,6 +180,8 @@ export default function UsersTable({
             <th>Name</th>
             <th>Email</th>
             <th>Phone</th>
+            <th>City</th>
+            <th>State</th>
             <th>Role</th>
             <th>Joined</th>
             <th />
@@ -182,6 +193,8 @@ export default function UsersTable({
               <td className="text-nowrap">{user.displayName}</td>
               <td>{user.email ?? "—"}</td>
               <td>{user.phone ?? "—"}</td>
+              <td>{user.city ?? "—"}</td>
+              <td>{user.state ?? "—"}</td>
               <td>
                 <Form.Select
                   size="sm"
@@ -199,6 +212,14 @@ export default function UsersTable({
               </td>
               <td>{new Date(user.createdAt).toLocaleDateString()}</td>
               <td className="d-flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline-secondary"
+                  onClick={() => setEditingUser(user)}
+                  title="Fix this rider's name/city/state/phone"
+                >
+                  <i className="bi bi-pencil" aria-hidden />
+                </Button>
                 <ImpersonateButton uid={user.uid} disabled={user.uid === currentUid || user.role === "admin"} />
                 <Button
                   size="sm"
@@ -216,9 +237,19 @@ export default function UsersTable({
 
       <CreateUserModal show={showCreate} onClose={() => setShowCreate(false)} onCreated={refetch} />
 
+      <EditUserModal
+        key={editingUser?.uid}
+        user={editingUser}
+        onClose={() => setEditingUser(null)}
+        onSaved={handleProfileSaved}
+      />
+
       <ToastContainer position="top-center" className="p-3" style={{ zIndex: 1100 }}>
         <Toast bg="success" onClose={() => setRoleChangeToast(null)} show={!!roleChangeToast} delay={3000} autohide>
           <Toast.Body className="text-white">{roleChangeToast}</Toast.Body>
+        </Toast>
+        <Toast bg="success" onClose={() => setProfileSavedToast(null)} show={!!profileSavedToast} delay={3000} autohide>
+          <Toast.Body className="text-white">{profileSavedToast}</Toast.Body>
         </Toast>
       </ToastContainer>
     </div>

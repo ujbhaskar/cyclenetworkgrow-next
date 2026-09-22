@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { looksLikeEmail, normalizePhone } from "@/lib/auth/phone";
 import { generateTemporaryPassword, setUserPassword } from "@/lib/auth/admin-users";
 import type { Role, UserProfile } from "@/lib/models/user";
+import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
 
 export async function listAllUsers(): Promise<UserProfile[]> {
   const snapshot = await adminDb.collection("users").orderBy("createdAt", "desc").get();
@@ -29,6 +30,40 @@ export async function deleteUserCompletely(uid: string): Promise<void> {
     adminAuth.deleteUser(uid).catch(() => undefined),
     adminDb.collection("users").doc(uid).delete(),
   ]);
+}
+
+export type AdminEditableProfileFields = {
+  firstName: string;
+  lastName?: string;
+  city?: string;
+  state?: string;
+  phone?: string;
+};
+
+/**
+ * Admin-driven correction for a rider's own name/city/state/phone —
+ * riders often typo these at signup or Strava-connect time and aren't
+ * always comfortable finding My Profile themselves, so an admin fixes it
+ * directly from the Users list instead. Unlike updateOwnProfile
+ * (user-profile.ts), never touches Firebase Auth: email is the actual
+ * sign-in credential there and isn't editable here, and a phone edit only
+ * updates the Firestore mirror (the same limitation self-service profile
+ * edits already have — a changed phone doesn't retroactively move the
+ * synthetic-email login credential derived from the old one).
+ */
+export async function updateUserProfileByAdmin(uid: string, fields: AdminEditableProfileFields): Promise<void> {
+  const ref = adminDb.collection("users").doc(uid);
+  const existing = (await ref.get()).data() as Partial<UserProfile> | undefined;
+
+  const firstName = fields.firstName.trim() || null;
+  const lastName = fields.lastName?.trim() || null;
+  const city = fields.city?.trim() || null;
+  const state = fields.state?.trim() || null;
+  const phone = fields.phone?.trim() ? normalizePhone(fields.phone) : null;
+  const displayName = [firstName, lastName].filter(Boolean).join(" ") || existing?.email || phone || "User";
+
+  await ref.set({ firstName, lastName, city, state, phone, displayName }, { merge: true });
+  invalidateEventLeaderboardCache();
 }
 
 export type CreateUserByAdminInput = {
