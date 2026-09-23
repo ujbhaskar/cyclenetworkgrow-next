@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
-import { previewNewRiderRegistrations, addNewRiderRegistrations } from "@/lib/legacy-registrations";
+import { previewNewRiderRegistrations, addNewRiderRegistrations, previewStravaLinkUpdates } from "@/lib/legacy-registrations";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +28,7 @@ type RouteParams = { params: Promise<{ eventId: string }> };
  *       - sessionCookie: []
  *     responses:
  *       200:
- *         description: "{ sheetName, totalRows, capturedRows, uniqueRegistrations, matchedWithStrava, existingRiderCount, newRiders: EventRider[] }"
+ *         description: "{ sheetName, totalRows, capturedRows, uniqueRegistrations, matchedWithStrava, existingRiderCount, newRiders: EventRider[], stravaLinkCandidates: StravaLinkCandidate[] }"
  *       400:
  *         description: Preview failed (e.g. no sheet configured, sheet/tab not found)
  */
@@ -37,8 +37,14 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { eventId } = await params;
 
   try {
-    const preview = await previewNewRiderRegistrations(eventId);
-    return Response.json(preview);
+    // Two independent diffs against the sheet vs. against Strava
+    // connections — see previewStravaLinkUpdates for why this can't just
+    // be folded into previewNewRiderRegistrations itself.
+    const [preview, stravaLinks] = await Promise.all([
+      previewNewRiderRegistrations(eventId),
+      previewStravaLinkUpdates(eventId),
+    ]);
+    return Response.json({ ...preview, stravaLinkCandidates: stravaLinks.candidates });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Preview failed" }, { status: 400 });
   }

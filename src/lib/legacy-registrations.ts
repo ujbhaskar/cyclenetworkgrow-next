@@ -59,6 +59,44 @@ function toPublicRider(rider: StoredEventRider): EventRider {
   };
 }
 
+type StravaMatch = {
+  stravaId: string;
+  profile: string;
+  city: string;
+  state: string;
+  sex: string;
+  access_token?: string;
+  refresh_token?: string;
+};
+
+/**
+ * Every Strava-connected rider on the platform, keyed by their connected
+ * phone — the shared lookup behind buildRidersFromSheet (new registrations)
+ * and previewStravaLinkUpdates (existing registrations that connected
+ * Strava after they were added).
+ */
+async function buildStravaByPhone(): Promise<Map<string, StravaMatch>> {
+  const tokensSnapshot = await adminDb.collection(ATHLETE_TOKENS_COLLECTION).get();
+  const stravaByPhone = new Map<string, StravaMatch>();
+  tokensSnapshot.docs.forEach((tokenDoc) => {
+    const token = tokenDoc.data() as AthleteTokenDoc;
+    const rawPhone = token.athlete?.phone;
+    if (!rawPhone) {
+      return;
+    }
+    stravaByPhone.set(cleanPhone(rawPhone), {
+      stravaId: String(token.athlete?.id ?? ""),
+      profile: token.athlete?.profile ?? "",
+      city: token.athlete?.city ?? "",
+      state: token.athlete?.state ?? "",
+      sex: token.athlete?.sex ?? "",
+      access_token: token.access_token,
+      refresh_token: token.refresh_token,
+    });
+  });
+  return stravaByPhone;
+}
+
 /**
  * Reads the sheet and rebuilds every registration as a StoredEventRider,
  * cross-referencing each phone against every Strava-connected rider on the
@@ -94,35 +132,7 @@ async function buildRidersFromSheet(sheetName: string): Promise<{
     });
   });
 
-  const tokensSnapshot = await adminDb.collection(ATHLETE_TOKENS_COLLECTION).get();
-  const stravaByPhone = new Map<
-    string,
-    {
-      stravaId: string;
-      profile: string;
-      city: string;
-      state: string;
-      sex: string;
-      access_token?: string;
-      refresh_token?: string;
-    }
-  >();
-  tokensSnapshot.docs.forEach((tokenDoc) => {
-    const token = tokenDoc.data() as AthleteTokenDoc;
-    const rawPhone = token.athlete?.phone;
-    if (!rawPhone) {
-      return;
-    }
-    stravaByPhone.set(cleanPhone(rawPhone), {
-      stravaId: String(token.athlete?.id ?? ""),
-      profile: token.athlete?.profile ?? "",
-      city: token.athlete?.city ?? "",
-      state: token.athlete?.state ?? "",
-      sex: token.athlete?.sex ?? "",
-      access_token: token.access_token,
-      refresh_token: token.refresh_token,
-    });
-  });
+  const stravaByPhone = await buildStravaByPhone();
 
   const riders: Record<string, StoredEventRider> = {};
   let matchedWithStrava = 0;
@@ -155,18 +165,27 @@ async function buildRidersFromSheet(sheetName: string): Promise<{
   return { rows, captured, riders, matchedWithStrava };
 }
 
-async function getEventDocOrThrow(eventId: string) {
+async function getEventRidersOrThrow(eventId: string): Promise<{
+  docRef: FirebaseFirestore.DocumentReference;
+  data: EventDoc;
+  existingRiders: Record<string, StoredEventRider>;
+}> {
   const docRef = adminDb.collection(EVENTS_COLLECTION).doc(eventId);
   const doc = await docRef.get();
   if (!doc.exists) {
     throw new Error("Event not found");
   }
   const data = doc.data() as EventDoc;
+  const existingRiders = (data.riders as Record<string, StoredEventRider> | undefined) ?? {};
+  return { docRef, data, existingRiders };
+}
+
+async function getEventDocOrThrow(eventId: string) {
+  const { docRef, data, existingRiders } = await getEventRidersOrThrow(eventId);
   const sheetName = data.registeredGoogleDataXLS;
   if (!sheetName) {
     throw new Error("This event has no registration sheet configured (registeredGoogleDataXLS)");
   }
-  const existingRiders = (data.riders as Record<string, EventRider> | undefined) ?? {};
   return { docRef, sheetName, existingRiders };
 }
 
@@ -251,13 +270,7 @@ export async function updateEventRiderByAdmin(
   currentPhone: string,
   fields: { full_name?: string; city?: string; state?: string; phone?: string },
 ): Promise<EventRider> {
-  const ref = adminDb.collection(EVENTS_COLLECTION).doc(eventId);
-  const doc = await ref.get();
-  if (!doc.exists) {
-    throw new Error("Event not found");
-  }
-  const data = doc.data() as EventDoc;
-  const riders = (data.riders as Record<string, EventRider> | undefined) ?? {};
+  const { docRef: ref, existingRiders: riders } = await getEventRidersOrThrow(eventId);
   const existing = riders[currentPhone];
   if (!existing) {
     throw new Error("Rider not found in this event's registration list");
@@ -271,7 +284,7 @@ export async function updateEventRiderByAdmin(
     throw new Error("Another registered rider already has that phone number");
   }
 
-  const updated: EventRider = {
+  const updated: StoredEventRider = {
     ...existing,
     phone: newPhone,
     full_name: fields.full_name !== undefined ? normalizeName(fields.full_name) : existing.full_name,
@@ -294,5 +307,75 @@ export async function updateEventRiderByAdmin(
   }
   invalidateEventLeaderboardCache();
 
-  return updated;
+  // Sanitized before returning — `existing` (and so `updated`) carries this
+  // rider's Strava access/refresh tokens inline (the legacy schema stores
+  // them on the registration record itself), which must never reach the
+  // browser. See toPublicRider.
+  return toPublicRider(updated);
+}
+
+export type StravaLinkCandidate = EventRider & {
+  /** The Strava athlete id a connection was found for, by matching phone. */
+  matchedAthleteId: string;
+};
+
+/**
+ * Finds registered riders with no Strava link yet (`stravaId` blank) whose
+ * phone now matches a Strava connection — i.e. they registered first and
+ * connected Strava afterward. Read-only; see applyStravaLinkUpdates for the
+ * confirm step.
+ *
+ * This is the gap left by addNewRiderRegistrations replacing the old
+ * full-resync behavior: a full resync used to re-derive every rider's
+ * stravaId from scratch each run, which incidentally caught this case too;
+ * the new additive sync only touches brand-new phones, so an existing
+ * registration's Strava link is never revisited on its own.
+ */
+export async function previewStravaLinkUpdates(eventId: string): Promise<{ candidates: StravaLinkCandidate[] }> {
+  const { existingRiders } = await getEventRidersOrThrow(eventId);
+  const stravaByPhone = await buildStravaByPhone();
+
+  const candidates = Object.values(existingRiders)
+    .filter((rider) => !rider.stravaId && stravaByPhone.has(rider.phone))
+    .map((rider) => ({
+      ...toPublicRider(rider),
+      matchedAthleteId: stravaByPhone.get(rider.phone)!.stravaId,
+    }))
+    .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
+
+  return { candidates };
+}
+
+/**
+ * Links exactly the given phones' registrations to their matching Strava
+ * connection — sets stravaId/profile (and access/refresh tokens, for
+ * parity with how a fresh registration gets linked) on each, re-validated
+ * against the current riders map and current Strava connections rather
+ * than trusting the client, same pattern as addNewRiderRegistrations.
+ */
+export async function applyStravaLinkUpdates(eventId: string, phones: string[]): Promise<{ linked: number }> {
+  const { docRef, existingRiders } = await getEventRidersOrThrow(eventId);
+  const stravaByPhone = await buildStravaByPhone();
+
+  const requested = new Set(phones.map((phone) => cleanPhone(phone)).filter(Boolean));
+  const updates: Record<string, unknown> = {};
+  requested.forEach((phone) => {
+    const rider = existingRiders[phone];
+    const strava = stravaByPhone.get(phone);
+    if (!rider || rider.stravaId || !strava) {
+      return;
+    }
+    updates[`riders.${phone}.stravaId`] = strava.stravaId;
+    updates[`riders.${phone}.profile`] = strava.profile;
+    updates[`riders.${phone}.access_token`] = strava.access_token ?? "";
+    updates[`riders.${phone}.refresh_token`] = strava.refresh_token ?? "";
+  });
+
+  const linked = Object.keys(updates).length / 4;
+  if (linked > 0) {
+    await docRef.update(updates);
+    invalidateEventLeaderboardCache();
+  }
+
+  return { linked };
 }
