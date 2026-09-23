@@ -18,6 +18,12 @@ function formatDayHeader(day: string): string {
   });
 }
 
+const NAME_LIMIT = 20;
+
+function truncateName(name: string): string {
+  return name.length > NAME_LIMIT ? `${name.slice(0, NAME_LIMIT)}…` : name;
+}
+
 // Rider × IST-day distance matrix — every cell is that rider's one
 // qualifying ride for the day (1177 rules §5(f)-(h)/§8(b): never more than
 // one), linking straight to the Strava activity that produced it. Newest
@@ -83,6 +89,14 @@ export default function EventDailyProgressTable({ data }: { data: EventDailyProg
           .cng-daily-scroll table thead th.col-rank,
           .cng-daily-scroll table thead th.col-name { z-index: 3; }
           .cng-daily-scroll table td, .cng-daily-scroll table th { white-space: nowrap; }
+          /* Rank stays a plain (non-sticky) column on phones so the sticky
+             region doesn't eat width from the day columns — header cells
+             keep the vertical top-sticky rule above, this only drops the
+             horizontal left-stickiness. */
+          @media (max-width: 576px) {
+            .cng-daily-scroll table .col-rank { left: auto; width: auto; box-shadow: none; }
+            .cng-daily-scroll table .col-name { left: 0; }
+          }
         `}</style>
         <table className="table table-hover table-sm align-middle mb-0">
           <thead>
@@ -100,7 +114,9 @@ export default function EventDailyProgressTable({ data }: { data: EventDailyProg
             {visibleRiders.map(({ rider, rank }) => (
               <tr key={rider.phone}>
                 <td className="col-rank">{rank}</td>
-                <td className="col-name">{rider.name}</td>
+                <td className="col-name" title={rider.name}>
+                  {truncateName(rider.name)}
+                </td>
                 {days.map((day) => {
                   const cell = rider.totalsByDay[day];
                   return (
