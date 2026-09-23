@@ -6,6 +6,7 @@ import { verifySession } from "@/lib/auth/dal";
 import { getUserProfile } from "@/lib/user-profile";
 import { getStravaAuthorizeUrl, getStravaConnectionByPhone } from "@/lib/strava";
 import ProfileEditForm from "@/components/rider/ProfileEditForm";
+import ChangePasswordForm from "@/components/rider/ChangePasswordForm";
 import DisconnectStravaButton from "@/components/rider/DisconnectStravaButton";
 
 const STRAVA_ERROR_MESSAGES: Record<string, string> = {
@@ -41,6 +42,10 @@ export default async function ProfilePage({ searchParams }: PageProps<"/profile"
       <h1 className="h3 mb-4">Your Profile</h1>
 
       {profile && <ProfileEditForm profile={profile} />}
+
+      <hr className="my-4" />
+
+      <ChangePasswordForm />
 
       <hr className="my-4" />
 
