@@ -1,4 +1,4 @@
-import { FieldValue, type DocumentReference } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { STRAVA_WEBHOOK_VERIFY_TOKEN } from "@/lib/strava";
 import { findStravaTokenDocById, getValidStravaAccessToken } from "@/lib/strava-tokens";
@@ -154,12 +154,16 @@ async function ingestCreatedActivity(activityId: number, athleteId: number, phon
  *   post:
  *     summary: Strava activity/athlete event
  *     description: >
- *       Records the raw event (audit trail, same as before), then — for
- *       activity create/delete events from an athlete registered for the
- *       current "1177 Grand Endurance" event (see EVENT_1177_ID) — syncs
+ *       For activity create/delete events from an athlete registered for
+ *       the current "1177 Grand Endurance" event (see EVENT_1177_ID), syncs
  *       rides/{phone} directly, the same collection the leaderboard reads.
- *       Non-participants and other aspect types (update, athlete events)
- *       are acknowledged and otherwise ignored, matching letscng-api's
+ *       Records an audit doc once the outcome is known, except for two
+ *       high-volume no-op reasons that are acknowledged without ever
+ *       writing to Firestore: "Athlete not registered for the 1177 event"
+ *       (fires for every Strava user's activity, not just participants) and
+ *       "Not a Ride/VirtualRide" (fires for every non-cycling activity a
+ *       participant logs). Other aspect types (update, athlete events) are
+ *       acknowledged and otherwise ignored too, matching letscng-api's
  *       webhook behavior.
  *     tags:
  *       - Strava
@@ -173,37 +177,31 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
-  // Only "create" events get an audit doc — "update" events and
-  // non-activity events (athlete deauthorization, etc.) carry little
-  // audit value and were the bulk of this collection's write/storage
-  // volume; "delete" events are still fully processed below (a ride is
-  // still removed from `rides`), just not logged. Awaited (unlike the
-  // fire-and-forget it used to be) so outcome/reason below can be written
-  // onto this exact doc — the admin viewer's "accepted vs discarded, and
-  // why" column. expiresAt drives this collection's TTL policy (see
-  // docs/DEPLOY.md) so the audit log doesn't grow forever.
+  // The audit doc is written once, after the outcome is known, rather than
+  // created eagerly then updated — cheaper, and lets specific outcomes
+  // (see below) skip the write entirely. expiresAt drives this collection's
+  // TTL policy (see docs/DEPLOY.md) so the audit log doesn't grow forever.
   const receivedAt = new Date();
-  let eventDoc: DocumentReference | null = null;
-  if (event.object_type === "activity" && event.aspect_type === "create") {
+
+  async function recordEvent(result: Outcome) {
     try {
-      eventDoc = await adminDb
-        .collection("stravaWebhookEvents")
-        .add({ ...event, receivedAt, expiresAt: new Date(receivedAt.getTime() + 2 * 24 * 60 * 60 * 1000) });
+      await adminDb.collection("stravaWebhookEvents").add({
+        ...event,
+        receivedAt,
+        expiresAt: new Date(receivedAt.getTime() + 2 * 24 * 60 * 60 * 1000),
+        outcome: result.outcome,
+        outcomeReason: result.reason,
+      });
     } catch (err) {
       console.error("[strava webhook] failed to record event:", err);
     }
   }
 
-  async function finish(result: Outcome) {
-    await eventDoc?.update({ outcome: result.outcome, outcomeReason: result.reason }).catch(() => {});
+  if (event.object_type !== "activity" || !event.object_id || !event.owner_id) {
     return Response.json({ ok: true });
   }
-
-  if (event.object_type !== "activity" || !event.object_id || !event.owner_id) {
-    return finish({ outcome: "ignored", reason: `Not an activity event (object_type=${event.object_type})` });
-  }
   if (event.aspect_type !== "create" && event.aspect_type !== "delete") {
-    return finish({ outcome: "ignored", reason: `Aspect type "${event.aspect_type}" not processed (only create/delete)` });
+    return Response.json({ ok: true });
   }
 
   try {
@@ -213,8 +211,10 @@ export async function POST(request: Request) {
     );
     if (!participant) {
       // Not registered for the event we're syncing rides for — same as
-      // letscng-api, silently ack and do nothing.
-      return finish({ outcome: "not_participant", reason: "Athlete not registered for the 1177 event" });
+      // letscng-api, silently ack and do nothing. Not logged: by far the
+      // most common no-op (every Strava user's activity fires this
+      // webhook, not just 1177 participants) and carries no audit value.
+      return Response.json({ ok: true });
     }
 
     if (event.aspect_type === "delete") {
@@ -228,18 +228,24 @@ export async function POST(request: Request) {
       if (deleted) {
         invalidateEventLeaderboardCache();
       }
-      return finish({
-        outcome: "deleted",
-        reason: deleted ? "Ride removed" : "Nothing to remove (no matching ride on file)",
-      });
+      // Deletes were never logged even before this change (an audit doc
+      // was only ever created for aspect_type === "create").
+      return Response.json({ ok: true });
     }
 
     const result = await ingestCreatedActivity(event.object_id, event.owner_id, participant.phone);
-    return finish(result);
+    // The other high-volume no-op reason: a non-cycling activity (run,
+    // swim, walk, etc.) from a participant fires this same webhook for
+    // every activity they log, not just rides.
+    if (result.outcome === "discarded" && result.reason.startsWith("Not a Ride/VirtualRide")) {
+      return Response.json({ ok: true });
+    }
+    await recordEvent(result);
+    return Response.json({ ok: true });
   } catch (err) {
-    // Ack anyway — Strava retries/disables on repeated failure or timeout,
-    // and the raw event is already recorded above for manual replay.
+    // Ack anyway — Strava retries/disables on repeated failure or timeout.
     console.error("[strava webhook] failed to process event:", err);
-    return finish({ outcome: "error", reason: err instanceof Error ? err.message : "Unknown error" });
+    await recordEvent({ outcome: "error", reason: err instanceof Error ? err.message : "Unknown error" });
+    return Response.json({ ok: true });
   }
 }
