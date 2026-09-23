@@ -32,6 +32,22 @@ export async function deleteUserCompletely(uid: string): Promise<void> {
   ]);
 }
 
+/**
+ * Resets a known user's password directly by uid — for the "Reset
+ * password" action on the Users list, where the account (and its uid)
+ * already exists. Deliberately doesn't go through setUserPassword
+ * (auth/admin-users.ts): that one resolves an identifier to a user,
+ * creating the account if it doesn't exist yet — the right behavior for
+ * onboarding someone by phone/email before they have an account, but not
+ * needed (and a needless extra lookup) when we already have the uid in
+ * hand from a row in the admin's own list.
+ */
+export async function resetUserPasswordByUid(uid: string, password?: string): Promise<{ password: string }> {
+  const newPassword = password && password.length >= 6 ? password : generateTemporaryPassword();
+  await adminAuth.updateUser(uid, { password: newPassword });
+  return { password: newPassword };
+}
+
 export type AdminEditableProfileFields = {
   firstName: string;
   lastName?: string;

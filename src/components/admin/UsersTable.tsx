@@ -26,6 +26,8 @@ export default function UsersTable({
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
   const [profileSavedToast, setProfileSavedToast] = useState<string | null>(null);
+  const [resettingUid, setResettingUid] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<{ name: string; password: string } | null>(null);
 
   const [nameFilter, setNameFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
@@ -90,6 +92,26 @@ export default function UsersTable({
     setProfileSavedToast(`${updated.displayName ?? "User"}'s details were updated.`);
   }
 
+  async function handleResetPassword(user: UserProfile) {
+    if (!confirm(`Reset ${user.displayName}'s password? They'll need the new password to log in again.`)) {
+      return;
+    }
+    setError(null);
+    setResettingUid(user.uid);
+    try {
+      const res = await fetch(`/api/admin/users/${user.uid}/reset-password`, { method: "POST" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error ?? "Couldn't reset that user's password.");
+      }
+      setResetResult({ name: user.displayName, password: body.password });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't reset that user's password.");
+    } finally {
+      setResettingUid(null);
+    }
+  }
+
   async function handleDelete(uid: string) {
     if (!confirm("Delete this user permanently? This can't be undone.")) {
       return;
@@ -112,6 +134,15 @@ export default function UsersTable({
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
+
+      {resetResult && (
+        <Alert variant="success" dismissible onClose={() => setResetResult(null)}>
+          <p className="mb-1">
+            {resetResult.name}&apos;s password was reset. Relay this to them — it won&apos;t be shown again:
+          </p>
+          <code className="fs-5">{resetResult.password}</code>
+        </Alert>
+      )}
 
       <div className="d-flex flex-wrap align-items-end gap-2 mb-3">
         <Form.Group>
@@ -221,6 +252,15 @@ export default function UsersTable({
                   <i className="bi bi-pencil" aria-hidden />
                 </Button>
                 <ImpersonateButton uid={user.uid} disabled={user.uid === currentUid || user.role === "admin"} />
+                <Button
+                  size="sm"
+                  variant="outline-warning"
+                  onClick={() => handleResetPassword(user)}
+                  disabled={resettingUid === user.uid}
+                  title="Reset this user's password"
+                >
+                  {resettingUid === user.uid ? "Resetting…" : "Reset Password"}
+                </Button>
                 <Button
                   size="sm"
                   variant="outline-danger"
