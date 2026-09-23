@@ -10,6 +10,7 @@ export default function ChangePasswordForm() {
   const [editing, setEditing] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -18,6 +19,7 @@ export default function ChangePasswordForm() {
     setEditing(false);
     setNewPassword("");
     setConfirmPassword("");
+    setShowPassword(false);
     setError(null);
   }
 
@@ -80,15 +82,25 @@ export default function ChangePasswordForm() {
         <label htmlFor="newPassword" className="form-label">
           New password
         </label>
-        <input
-          id="newPassword"
-          type="password"
-          className="form-control"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          autoFocus
-          required
-        />
+        <div className="input-group">
+          <input
+            id="newPassword"
+            type={showPassword ? "text" : "password"}
+            className="form-control"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            autoFocus
+            required
+          />
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Hide passwords" : "Show passwords"}
+          >
+            <i className={`bi ${showPassword ? "bi-eye-slash" : "bi-eye"}`} aria-hidden />
+          </button>
+        </div>
       </div>
       <div className="mb-3">
         <label htmlFor="confirmPassword" className="form-label">
@@ -96,7 +108,7 @@ export default function ChangePasswordForm() {
         </label>
         <input
           id="confirmPassword"
-          type="password"
+          type={showPassword ? "text" : "password"}
           className="form-control"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
