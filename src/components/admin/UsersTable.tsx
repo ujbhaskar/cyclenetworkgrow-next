@@ -11,6 +11,7 @@ import { ROLES, type Role, type UserProfile } from "@/lib/models/user";
 import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import CreateUserModal from "./CreateUserModal";
 import EditUserModal from "./EditUserModal";
+import ResetPasswordModal from "./ResetPasswordModal";
 import ImpersonateButton from "./ImpersonateButton";
 
 export default function UsersTable({
@@ -26,7 +27,7 @@ export default function UsersTable({
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [roleChangeToast, setRoleChangeToast] = useState<string | null>(null);
   const [profileSavedToast, setProfileSavedToast] = useState<string | null>(null);
-  const [resettingUid, setResettingUid] = useState<string | null>(null);
+  const [resettingUser, setResettingUser] = useState<UserProfile | null>(null);
   const [resetResult, setResetResult] = useState<{ name: string; password: string } | null>(null);
 
   const [nameFilter, setNameFilter] = useState("");
@@ -92,24 +93,9 @@ export default function UsersTable({
     setProfileSavedToast(`${updated.displayName ?? "User"}'s details were updated.`);
   }
 
-  async function handleResetPassword(user: UserProfile) {
-    if (!confirm(`Reset ${user.displayName}'s password? They'll need the new password to log in again.`)) {
-      return;
-    }
-    setError(null);
-    setResettingUid(user.uid);
-    try {
-      const res = await fetch(`/api/admin/users/${user.uid}/reset-password`, { method: "POST" });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(body.error ?? "Couldn't reset that user's password.");
-      }
-      setResetResult({ name: user.displayName, password: body.password });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't reset that user's password.");
-    } finally {
-      setResettingUid(null);
-    }
+  function handleResetDone(result: { name: string; password: string }) {
+    setResettingUser(null);
+    setResetResult(result);
   }
 
   async function handleDelete(uid: string) {
@@ -255,11 +241,10 @@ export default function UsersTable({
                 <Button
                   size="sm"
                   variant="outline-warning"
-                  onClick={() => handleResetPassword(user)}
-                  disabled={resettingUid === user.uid}
+                  onClick={() => setResettingUser(user)}
                   title="Reset this user's password"
                 >
-                  {resettingUid === user.uid ? "Resetting…" : "Reset Password"}
+                  Reset Password
                 </Button>
                 <Button
                   size="sm"
@@ -282,6 +267,13 @@ export default function UsersTable({
         user={editingUser}
         onClose={() => setEditingUser(null)}
         onSaved={handleProfileSaved}
+      />
+
+      <ResetPasswordModal
+        key={resettingUser?.uid}
+        user={resettingUser}
+        onClose={() => setResettingUser(null)}
+        onReset={handleResetDone}
       />
 
       <ToastContainer position="top-center" className="p-3" style={{ zIndex: 1100 }}>
