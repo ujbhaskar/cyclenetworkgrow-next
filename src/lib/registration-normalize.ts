@@ -38,14 +38,31 @@ export function normalizeName(raw: string): string {
   return trimmed ? titleCase(trimmed) : "";
 }
 
+// A handful of exact-match spelling variants that would otherwise
+// fragment into separate values in city-based stats — reported by riders
+// seeing "Pondicherry" and "Puducherry" split into two entries in the
+// Insights city breakdown. Deliberately tiny (unlike india-states.ts's
+// full state-alias table, which this file has no dependency on): add
+// entries here only as further duplicates are actually reported, rather
+// than growing this into full alias resolution. Keyed on upper-cased,
+// trimmed input.
+const CITY_ALIASES: Record<string, string> = {
+  PONDICHERRY: "Puducherry",
+  PUDUCHERRY: "Puducherry",
+};
+
 // Free-text city entries vary wildly in casing ("KOLKATA" / "kolkata" /
 // "Kolkata") — title-case them so the same city always aggregates as one
 // value instead of fragmenting into 2-3 near-duplicates in any city-based
-// stat. Doesn't fix genuine spelling variants (e.g. "Bombay" vs "Mumbai"),
-// only case.
+// stat. Beyond casing, only the known exact-match variants in CITY_ALIASES
+// above are merged — this doesn't attempt general spelling-variant
+// resolution (e.g. "Bombay" vs "Mumbai").
 export function normalizeCity(raw: string): string {
   const trimmed = raw.trim().replace(/\s+/g, " ");
-  return trimmed ? titleCase(trimmed) : "";
+  if (!trimmed) {
+    return "";
+  }
+  return CITY_ALIASES[trimmed.toUpperCase()] ?? titleCase(trimmed);
 }
 
 // Case/whitespace-only normalization for free text where a full canonical
