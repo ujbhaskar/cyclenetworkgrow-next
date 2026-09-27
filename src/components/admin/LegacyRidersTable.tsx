@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
+import Alert from "react-bootstrap/Alert";
 import Toast from "react-bootstrap/Toast";
 import ToastContainer from "react-bootstrap/ToastContainer";
 import type { EventRider } from "@/lib/events";
@@ -37,6 +38,8 @@ export default function LegacyRidersTable({ eventId, riders: initialRiders }: { 
   const [stravaFilter, setStravaFilter] = useState<StravaFilter>("all");
   const [editingRider, setEditingRider] = useState<EventRider | null>(null);
   const [savedToast, setSavedToast] = useState<string | null>(null);
+  const [removingPhone, setRemovingPhone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const states = useMemo(() => [...new Set(riders.map(riderState).filter(Boolean))].sort(), [riders]);
   const cities = useMemo(() => [...new Set(riders.map(riderCity).filter(Boolean))].sort(), [riders]);
@@ -64,6 +67,31 @@ export default function LegacyRidersTable({ eventId, riders: initialRiders }: { 
     setSavedToast(`${updated.full_name || "Rider"}'s details were updated.`);
   }
 
+  async function handleRemove(rider: EventRider) {
+    if (
+      !confirm(
+        `Remove ${rider.full_name || rider.phone}'s registration from this event? This can't be undone (their already-synced rides, if any, are left as-is).`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    setRemovingPhone(rider.phone);
+    try {
+      const res = await fetch(`/api/admin/legacy-events/${eventId}/riders/${rider.phone}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Couldn't remove this rider");
+      }
+      setRiders((list) => list.filter((r) => r.phone !== rider.phone));
+      setSavedToast(`${rider.full_name || "Rider"}'s registration was removed.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't remove this rider");
+    } finally {
+      setRemovingPhone(null);
+    }
+  }
+
   // Metrics reflect the currently filtered set, so narrowing by state/city/
   // gender/Strava status updates the counts too, not just the table rows.
   const metrics = useMemo(() => {
@@ -85,6 +113,8 @@ export default function LegacyRidersTable({ eventId, riders: initialRiders }: { 
 
   return (
     <div>
+      {error && <Alert variant="danger">{error}</Alert>}
+
       <div className="d-flex flex-wrap gap-4 mb-4">
         <div>
           <div className="fs-4 fw-semibold lh-1">{metrics.total}</div>
@@ -195,7 +225,7 @@ export default function LegacyRidersTable({ eventId, riders: initialRiders }: { 
                     "—"
                   )}
                 </td>
-                <td>
+                <td className="d-flex gap-2">
                   <Button
                     size="sm"
                     variant="outline-secondary"
@@ -203,6 +233,15 @@ export default function LegacyRidersTable({ eventId, riders: initialRiders }: { 
                     title="Fix this rider's name/city/state/phone"
                   >
                     <i className="bi bi-pencil" aria-hidden />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline-danger"
+                    onClick={() => handleRemove(rider)}
+                    disabled={removingPhone === rider.phone}
+                    title="Remove this rider's registration from this event"
+                  >
+                    <i className="bi bi-trash3" aria-hidden />
                   </Button>
                 </td>
               </tr>

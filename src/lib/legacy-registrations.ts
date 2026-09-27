@@ -314,6 +314,27 @@ export async function updateEventRiderByAdmin(
   return toPublicRider(updated);
 }
 
+/**
+ * Removes one rider's registration record entirely — for a duplicate entry,
+ * a mistaken/test registration, or someone who's asked to be withdrawn.
+ * Only deletes this one key from the event's `riders` map; deliberately
+ * does NOT touch the separate top-level `rides/{phone}` collection (their
+ * already-synced Strava ride history), same accepted-limitation reasoning
+ * as updateEventRiderByAdmin above — if they're re-added later, their past
+ * rides are still on file under that phone and will resurface on the
+ * leaderboard immediately.
+ */
+export async function removeEventRiderByAdmin(eventId: string, phone: string): Promise<void> {
+  const { docRef: ref, existingRiders: riders } = await getEventRidersOrThrow(eventId);
+  const cleaned = cleanPhone(phone);
+  if (!riders[cleaned]) {
+    throw new Error("Rider not found in this event's registration list");
+  }
+
+  await ref.update({ [`riders.${cleaned}`]: FieldValue.delete() });
+  invalidateEventLeaderboardCache();
+}
+
 export type StravaLinkCandidate = EventRider & {
   /** The Strava athlete id a connection was found for, by matching phone. */
   matchedAthleteId: string;
