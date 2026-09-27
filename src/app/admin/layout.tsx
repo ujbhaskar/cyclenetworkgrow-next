@@ -10,7 +10,10 @@ const ADMIN_NAV: AdminNavSection[] = [
   },
   {
     section: "Events",
-    items: [{ href: "/admin/events", label: "Events", icon: "bi-calendar-event" }],
+    items: [
+      { href: "/admin/events", label: "Events", icon: "bi-calendar-event" },
+      { href: "/admin/events/chatbot", label: "Event Chatbot", icon: "bi-chat-dots" },
+    ],
   },
   {
     section: "Users & Riders",

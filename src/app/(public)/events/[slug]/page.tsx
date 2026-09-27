@@ -13,8 +13,10 @@ import {
 } from "@/lib/events";
 import { getEventLeaderboard, buildEventDailyProgress, EVENT_1177_ID } from "@/lib/rider-metrics";
 import { getAw80dLeaderboard, AW80D_EVENT_ID } from "@/lib/aw80d";
+import { getEventChatConfig } from "@/lib/event-chat-limits";
 import EventLeaderboard from "@/components/events/EventLeaderboard";
 import Aw80dLeaderboard from "@/components/events/Aw80dLeaderboard";
+import EventChatWidget from "@/components/events/EventChatWidget";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import { MILESTONES_KM, MILESTONE_QUOTAS } from "@/lib/models/rider-metric";
 
@@ -74,6 +76,11 @@ export default async function EventDetailPage({
   const session = await getOptionalSession();
   const profile = session ? await getUserProfile(session.uid) : null;
   const currentUserPhone = profile?.phone ? profile.phone.replace(/\D/g, "").slice(-10) : null;
+  const riderFirstName = profile?.firstName || profile?.displayName?.split(" ")[0] || null;
+  // Gates the widget's very presence, not just the chat route's response —
+  // an admin turning the chatbot off should actually hide the button, not
+  // leave it visible only to error when clicked.
+  const chatConfig = session ? await getEventChatConfig() : null;
 
   return (
     <div>
@@ -194,14 +201,19 @@ export default async function EventDetailPage({
             <Aw80dLeaderboard data={aw80dLeaderboard} eventStartDate={event.startDate} eventEndDate={event.endDate} />
           ) : (
             leaderboard && (
-              <EventLeaderboard
-                data={leaderboard}
-                eventStartDate={event.startDate}
-                eventEndDate={event.endDate}
-                registeredRiders={registeredRiders}
-                currentUserPhone={currentUserPhone}
-                dailyProgress={dailyProgress}
-              />
+              <>
+                <EventLeaderboard
+                  data={leaderboard}
+                  eventStartDate={event.startDate}
+                  eventEndDate={event.endDate}
+                  registeredRiders={registeredRiders}
+                  currentUserPhone={currentUserPhone}
+                  dailyProgress={dailyProgress}
+                />
+                {session && chatConfig?.enabled && (
+                  <EventChatWidget eventId={event.id} eventName={event.name} riderFirstName={riderFirstName} />
+                )}
+              </>
             )
           )}
         </Container>
