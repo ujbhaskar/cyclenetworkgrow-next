@@ -69,6 +69,12 @@ export default function RegistrationSyncPanel({
     }
   }
 
+  function handleExcludeNewRider(phone: string) {
+    setPreview((current) =>
+      current ? { ...current, newRiders: current.newRiders.filter((r) => r.phone !== phone) } : current,
+    );
+  }
+
   async function handleConfirmStravaLinks() {
     if (!preview || preview.stravaLinkCandidates.length === 0) return;
     setLinking(true);
@@ -143,6 +149,7 @@ export default function RegistrationSyncPanel({
                   <th>Phone</th>
                   <th>City</th>
                   <th>State</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -152,6 +159,17 @@ export default function RegistrationSyncPanel({
                     <td>{rider.phone}</td>
                     <td>{rider.city || "—"}</td>
                     <td>{rider.state || "—"}</td>
+                    <td>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        onClick={() => handleExcludeNewRider(rider.phone)}
+                        disabled={confirming}
+                        title="Don't add this one — remove it from the list before confirming"
+                      >
+                        <i className="bi bi-trash3" aria-hidden />
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
