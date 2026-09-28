@@ -2,7 +2,9 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import { requireRole } from "@/lib/auth/dal";
 import { listAllUsers } from "@/lib/admin-user-management";
+import { getRecentDailyRideCounts } from "@/lib/admin-dashboard-stats";
 import StatCard from "@/components/admin/StatCard";
+import RidesPerDayChart from "@/components/admin/RidesPerDayChart";
 
 export default async function AdminDashboardPage() {
   // Re-checked here even though admin/layout.tsx already checked it this
@@ -13,6 +15,7 @@ export default async function AdminDashboardPage() {
   const users = await listAllUsers();
   const riderCount = users.filter((u) => u.role === "rider").length;
   const adminCount = users.filter((u) => u.role === "admin" || u.role === "manager").length;
+  const dailyRides = await getRecentDailyRideCounts(7);
 
   return (
     <div>
@@ -43,6 +46,11 @@ export default async function AdminDashboardPage() {
           />
         </Col>
       </Row>
+
+      <div className="mt-4">
+        <h2 className="h5 mb-3">Rides per day — last 7 days</h2>
+        <RidesPerDayChart data={dailyRides} />
+      </div>
     </div>
   );
 }
