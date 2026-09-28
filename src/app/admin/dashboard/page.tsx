@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth/dal";
 import { listAllUsers } from "@/lib/admin-user-management";
 import { getRecentDailyRideCounts } from "@/lib/admin-dashboard-stats";
 import StatCard from "@/components/admin/StatCard";
-import RidesPerDayChart from "@/components/admin/RidesPerDayChart";
+import RidesPerDayChart from "@/components/RidesPerDayChart";
 
 export default async function AdminDashboardPage() {
   // Re-checked here even though admin/layout.tsx already checked it this

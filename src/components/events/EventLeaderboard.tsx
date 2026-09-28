@@ -15,6 +15,7 @@ import {
 import type { PublicEventRider } from "@/lib/events";
 import { normalizeCity, normalizeCasing } from "@/lib/registration-normalize";
 import UserAvatar from "@/components/UserAvatar";
+import RidesPerDayChart from "@/components/RidesPerDayChart";
 import IndiaStateMap from "./IndiaStateMap";
 import SimpleBarChart from "./SimpleBarChart";
 import EventDailyProgressTable from "./EventDailyProgressTable";
@@ -260,6 +261,22 @@ export default function EventLeaderboard({
       color: "#d63384",
     },
   ];
+
+  // Scoped to THIS event's own qualifying rides, not site-wide — derived
+  // from dailyProgress (already deduped to one qualifying ride per rider
+  // per day, matching the event's own rules), no extra data fetch needed.
+  // dailyProgress.days is newest-first; take the most recent 7 and reverse
+  // for a left-to-right chronological read.
+  const ridesPerDay = useMemo(() => {
+    if (!dailyProgress) return null;
+    return [...dailyProgress.days]
+      .slice(0, 7)
+      .reverse()
+      .map((day) => ({
+        day,
+        count: dailyProgress.riders.filter((rider) => rider.totalsByDay[day]).length,
+      }));
+  }, [dailyProgress]);
 
   return (
     <div>
@@ -534,6 +551,16 @@ export default function EventLeaderboard({
               <SimpleBarChart title="Rides by Milestone Bracket" icon="bi-bar-chart-fill" bars={bracketBars} />
               <SimpleBarChart title="Riders by Gender" icon="bi-people-fill" bars={genderBars} />
             </div>
+
+            {ridesPerDay && (
+              <div className="mb-4">
+                <h3 className="h6 fw-bold mb-3">
+                  <i className="bi bi-graph-up me-2" aria-hidden />
+                  Rides per Day (Last 7 Days)
+                </h3>
+                <RidesPerDayChart data={ridesPerDay} highlightPeak />
+              </div>
+            )}
           </div>
         </Tab>
       </Tabs>

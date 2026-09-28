@@ -1,14 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import type { DailyRideCount } from "@/lib/admin-dashboard-stats";
 
-const BAR_COLOR = "#125ea3"; // $cng-blue-color (globals.scss) — validated via dataviz's palette script
+const BAR_COLOR = "#125ea3"; // $cng-blue-color (globals.scss)
+const PEAK_COLOR = "#4caf6d"; // $cng-brand-green (globals.scss)
+// Both validated via dataviz's palette script: CVD ΔE 28.2 (protan)/18.9
+// (tritan), normal-vision ΔE 28.6 — clearly distinct as a base+highlight
+// pair. The green's own contrast-vs-surface WARNs below 3:1, which is why
+// every bar (peak or not) carries its count as a plain-ink direct label
+// rather than relying on the bar's fill to read the value.
 const CHART_HEIGHT = 140;
+
+function ordinal(n: number): string {
+  const v = n % 100;
+  if (v >= 11 && v <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
 
 function formatDayLabel(day: string): string {
   const [y, m, d] = day.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { weekday: "short", timeZone: "UTC" });
+  const month = new Date(Date.UTC(y, m - 1, d)).toLocaleDateString(undefined, { month: "short", timeZone: "UTC" });
+  return `${ordinal(d)} ${month}`;
 }
 
 function formatFullDate(day: string): string {
@@ -21,16 +42,32 @@ function formatFullDate(day: string): string {
   });
 }
 
+export type DailyCountPoint = { day: string; count: number };
+
 // Single-series magnitude-over-time bar chart — no legend (one color, the
 // title says what it is); the count is direct-labeled above every bar so
 // the value is always visible, not gated behind hover. Hover/focus just
 // adds the full date in a tooltip and a slight lift on that bar.
-export default function RidesPerDayChart({ data }: { data: DailyRideCount[] }) {
+// `highlightPeak` colors the single highest-count bar as a called-out
+// extreme (not a series/identity distinction — only ever one bar at a
+// time), matching the "label the extreme" pattern for direct labels.
+export default function RidesPerDayChart({
+  data,
+  highlightPeak = false,
+}: {
+  data: DailyCountPoint[];
+  highlightPeak?: boolean;
+}) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const max = Math.max(...data.map((d) => d.count), 1);
+  const peakIndex = highlightPeak && max > 0 ? data.findIndex((d) => d.count === max) : -1;
 
   return (
-    <div className="position-relative">
+    // paddingTop reserves headroom for the tallest bar's tooltip (which
+    // floats above the bar, and the tallest bar leaves the least room) —
+    // self-contained so it can never poke into whatever a caller renders
+    // above this chart, regardless of the tooltip's own rendered height.
+    <div className="position-relative" style={{ paddingTop: 48 }}>
       <div
         className="d-flex align-items-end"
         style={{ height: CHART_HEIGHT, gap: 16, borderBottom: "1px solid #e5e5e5" }}
@@ -38,6 +75,7 @@ export default function RidesPerDayChart({ data }: { data: DailyRideCount[] }) {
         {data.map((point, index) => {
           const heightPx = point.count === 0 ? 0 : Math.max((point.count / max) * (CHART_HEIGHT - 24), 4);
           const isActive = activeIndex === index;
+          const isPeak = index === peakIndex;
           return (
             <div
               key={point.day}
@@ -49,7 +87,7 @@ export default function RidesPerDayChart({ data }: { data: DailyRideCount[] }) {
               onBlur={() => setActiveIndex(null)}
               tabIndex={0}
               role="img"
-              aria-label={`${formatFullDate(point.day)}: ${point.count} ride${point.count === 1 ? "" : "s"}`}
+              aria-label={`${formatFullDate(point.day)}: ${point.count} ride${point.count === 1 ? "" : "s"}${isPeak ? " (busiest day)" : ""}`}
             >
               {isActive && (
                 <div
@@ -57,6 +95,7 @@ export default function RidesPerDayChart({ data }: { data: DailyRideCount[] }) {
                   style={{ bottom: heightPx + 28, zIndex: 2, pointerEvents: "none" }}
                 >
                   {formatFullDate(point.day)}: {point.count} ride{point.count === 1 ? "" : "s"}
+                  {isPeak ? " · busiest day" : ""}
                 </div>
               )}
               <div className="small text-muted mb-1" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -67,7 +106,7 @@ export default function RidesPerDayChart({ data }: { data: DailyRideCount[] }) {
                   width: 24,
                   maxWidth: 24,
                   height: heightPx,
-                  background: BAR_COLOR,
+                  background: isPeak ? PEAK_COLOR : BAR_COLOR,
                   opacity: isActive ? 0.85 : 1,
                   borderTopLeftRadius: 4,
                   borderTopRightRadius: 4,
