@@ -87,49 +87,57 @@ stored `receivedAt` as a string, so those predate `expiresAt` and won't be swept
 
 ## Razorpay (registration payment sync)
 
-Replaces the old portal's flow (Razorpay export → pasted into a Google Sheet → admin
-clicks "Sync users from registrations", which reads that sheet via the Sheets API) with
-a webhook straight from Razorpay — see `src/lib/razorpay.ts` and
-`src/app/api/webhooks/razorpay/route.ts`. **Stage 1 only** (verifies the signature and
-records the raw event to the `razorpayWebhookEvents` collection) — turning a captured
-payment into a rider on the right event isn't built yet; that needs a real
-`payment.captured` event's actual shape first (Razorpay's docs don't fully specify where
-a Payment Page's custom fields — full name/gender/city/state — land in the payload).
+Two independent paths exist. The admin Registrations page (`/admin/events/<id>/registrations`)
+offers both — an event just needs `registeredGoogleDataXLS` and/or `payment_link` set to
+show the matching section.
 
-- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — not used by stage 1 yet, but needed for the
-  Orders/Payments API lookup stage 2 will add. Both stored as App Hosting secrets (not
-  split public/secret like Strava's CLIENT_ID) since it's not yet confirmed KEY_ID needs
-  to be client-exposed here.
-- `RAZORPAY_WEBHOOK_SECRET` — configured in the Razorpay dashboard (Settings → Webhooks)
-  when creating the webhook; used to verify `x-razorpay-signature`.
-- Set each with:
+**Direct from Razorpay's Payments API** (`src/lib/razorpay-registrations.ts`,
+`/api/admin/legacy-events/[eventId]/sync-razorpay`) — no manual export needed. Confirmed
+against real production data that a Payment Page's custom fields land in each captured
+payment's `notes` object (`notes.full_name`/`gender`/`city`/`state`), with phone as
+`contact` at the top level. Same preview-then-confirm shape as the Google Sheet path
+below: `previewRazorpayRegistrations` fetches every captured payment in a date window
+around the event's `startDate` (a generous fixed lookback — safe only because events
+never run with overlapping registration windows) and diffs against the event's current
+`riders` map (read-only); `addRazorpayRegistrations` merges in just the confirmed phones.
+
+- `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` — Basic Auth for the Payments API
+  (`GET /v1/payments`). Both stored as App Hosting secrets (not split public/secret like
+  Strava's CLIENT_ID) since it's not yet confirmed KEY_ID needs to be client-exposed here.
+  Set with:
   ```bash
-  firebase apphosting:secrets:set RAZORPAY_KEY_ID --project challenge1177 --force
-  firebase apphosting:secrets:set RAZORPAY_KEY_SECRET --project challenge1177 --force
-  firebase apphosting:secrets:set RAZORPAY_WEBHOOK_SECRET --project challenge1177 --force
+  firebase apphosting:secrets:set RAZORPAY_KEY_ID --project challenge1177 --force --data-file -
+  firebase apphosting:secrets:set RAZORPAY_KEY_SECRET --project challenge1177 --force --data-file -
   firebase apphosting:secrets:grantaccess RAZORPAY_KEY_ID \
     --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
   firebase apphosting:secrets:grantaccess RAZORPAY_KEY_SECRET \
     --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
-  firebase apphosting:secrets:grantaccess RAZORPAY_WEBHOOK_SECRET \
-    --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
   ```
-- In the Razorpay dashboard: Settings → Webhooks → Add New Webhook, URL
-  `https://cyclenetworkgrow-next--challenge1177.us-east4.hosted.app/api/webhooks/razorpay`,
-  select at least `payment.captured`, and set the same secret used above. Razorpay's
-  "Send Test Webhook" button there can be used to confirm the endpoint responds `200`,
-  though a synthetic test event won't include a real Payment Page's actual custom-field
-  notes — check a real captured payment's logged document in `razorpayWebhookEvents` for
-  that.
+- A Razorpay API key/secret pair is only shown once at generation time and can't be
+  retrieved later — if it's ever lost, the only recovery is **Regenerate Key** in the
+  dashboard (Settings → API Keys), which immediately invalidates the old key for
+  anything else using it (a live checkout embed, another integration). Confirm nothing
+  else depends on the current key before regenerating.
+
+**Webhook** (`src/lib/razorpay.ts`, `src/app/api/webhooks/razorpay/route.ts`) — **stage 1
+only, still unused**: verifies the signature and records the raw event to
+`razorpayWebhookEvents`, but nothing turns a captured payment into a rider on the right
+event this way. Left in place in case full auto-ingestion (no admin click needed at all)
+is revisited later; would reuse the same `notes` field mapping the Payments API path
+above already confirmed.
+- `RAZORPAY_WEBHOOK_SECRET` — configured in the Razorpay dashboard (Settings → Webhooks)
+  when/if a webhook is added; used to verify `x-razorpay-signature`. Not currently bound
+  in `apphosting.yaml` — add it back (`firebase apphosting:secrets:set
+  RAZORPAY_WEBHOOK_SECRET ...` + `:grantaccess`, same pattern as above) if this path is
+  built out.
 
 ## Google Sheets (legacy event registration sync)
 
-Decided against the Razorpay-webhook approach above for now — reverted to matching the
-legacy Angular admin's existing workflow instead: admin pastes each event's Razorpay
-Payment Page export into a tab of a shared Google Sheet, then triggers a sync from
-`/admin/legacy-events/<id>` (see `src/lib/googleSheets.ts`,
-`src/lib/legacy-registrations.ts`). The Razorpay webhook code above is left in place
-(stage 1 only, unused by this flow) in case direct integration is revisited later.
+The original registration-sync path, still supported alongside the direct-Razorpay one
+above: admin pastes each event's Razorpay Payment Page export into a tab of a shared
+Google Sheet, then triggers a sync from `/admin/events/<id>/registrations` (see
+`src/lib/googleSheets.ts`, `src/lib/legacy-registrations.ts`). Useful for an event that
+predates the direct-Razorpay path, or if Razorpay API access is ever unavailable.
 
 - `GOOGLE_SHEETS_CREDENTIALS_JSON` — the full service-account key JSON, one line. Reuses
   the **same** service account the legacy backend already uses

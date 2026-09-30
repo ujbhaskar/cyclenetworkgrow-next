@@ -21,7 +21,11 @@ export default async function AdminEventRegistrationsPage({
       <p className="text-muted mb-4">Registration sync from the shared Google Sheet.</p>
 
       <div className="bg-white border rounded p-3 mb-4">
-        <RegistrationSyncPanel eventId={event.id} sheetName={event.registeredGoogleDataXLS ?? null} />
+        <RegistrationSyncPanel
+          eventId={event.id}
+          sheetName={event.registeredGoogleDataXLS ?? null}
+          hasRazorpayPaymentLink={Boolean(event.payment_link)}
+        />
       </div>
 
       <h2 className="h5 mb-3">Current Riders</h2>

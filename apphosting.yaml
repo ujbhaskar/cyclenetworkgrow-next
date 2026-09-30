@@ -15,11 +15,18 @@ env:
     secret: GOOGLE_SHEETS_CREDENTIALS_JSON
     availability:
       - RUNTIME
-  # RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET
-  # deliberately not bound here yet — src/lib/razorpay.ts and
-  # /api/webhooks/razorpay exist but nothing calls them (registration sync
-  # went with the Google Sheets route instead; see docs/DEPLOY.md). Add
-  # these back (with real secrets created first) if that work resumes.
+  # Direct Razorpay-registration sync (Payments API) — see
+  # docs/DEPLOY.md's Razorpay section. RAZORPAY_WEBHOOK_SECRET stays
+  # unbound: the webhook route itself is still stage-1-only, unused by
+  # this sync path.
+  - variable: RAZORPAY_KEY_ID
+    secret: RAZORPAY_KEY_ID
+    availability:
+      - RUNTIME
+  - variable: RAZORPAY_KEY_SECRET
+    secret: RAZORPAY_KEY_SECRET
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more

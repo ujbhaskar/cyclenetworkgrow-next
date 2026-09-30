@@ -6,15 +6,18 @@ import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
 import Table from "react-bootstrap/Table";
 import type { NewRiderPreview, StravaLinkCandidate } from "@/lib/legacy-registrations";
+import type { RazorpayRegistrationPreview } from "@/lib/razorpay-registrations";
 
 type CombinedPreview = NewRiderPreview & { stravaLinkCandidates: StravaLinkCandidate[] };
 
 export default function RegistrationSyncPanel({
   eventId,
   sheetName,
+  hasRazorpayPaymentLink,
 }: {
   eventId: string;
   sheetName: string | null;
+  hasRazorpayPaymentLink: boolean;
 }) {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
@@ -24,6 +27,12 @@ export default function RegistrationSyncPanel({
   const [preview, setPreview] = useState<CombinedPreview | null>(null);
   const [addedCount, setAddedCount] = useState<number | null>(null);
   const [linkedCount, setLinkedCount] = useState<number | null>(null);
+
+  const [checkingRazorpay, setCheckingRazorpay] = useState(false);
+  const [confirmingRazorpay, setConfirmingRazorpay] = useState(false);
+  const [razorpayError, setRazorpayError] = useState<string | null>(null);
+  const [razorpayPreview, setRazorpayPreview] = useState<RazorpayRegistrationPreview | null>(null);
+  const [razorpayAddedCount, setRazorpayAddedCount] = useState<number | null>(null);
 
   async function handleCheck() {
     setChecking(true);
@@ -99,17 +108,66 @@ export default function RegistrationSyncPanel({
     }
   }
 
-  if (!sheetName) {
-    return (
-      <Alert variant="warning" className="mb-0">
-        This event has no registration sheet configured (<code>registeredGoogleDataXLS</code> is empty) — nothing to
-        sync from.
-      </Alert>
+  async function handleCheckRazorpay() {
+    setCheckingRazorpay(true);
+    setRazorpayError(null);
+    setRazorpayPreview(null);
+    setRazorpayAddedCount(null);
+    try {
+      const res = await fetch(`/api/admin/legacy-events/${eventId}/sync-razorpay`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error ?? "Couldn't check Razorpay for new registrations");
+      }
+      setRazorpayPreview(body as RazorpayRegistrationPreview);
+    } catch (err) {
+      setRazorpayError(err instanceof Error ? err.message : "Couldn't check Razorpay for new registrations");
+    } finally {
+      setCheckingRazorpay(false);
+    }
+  }
+
+  async function handleConfirmRazorpay() {
+    if (!razorpayPreview || razorpayPreview.newRiders.length === 0) return;
+    setConfirmingRazorpay(true);
+    setRazorpayError(null);
+    try {
+      const res = await fetch(`/api/admin/legacy-events/${eventId}/sync-razorpay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phones: razorpayPreview.newRiders.map((r) => r.phone) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(body.error ?? "Couldn't add the new riders");
+      }
+      setRazorpayAddedCount(body.added ?? 0);
+      setRazorpayPreview((current) => (current ? { ...current, newRiders: [] } : current));
+      router.refresh();
+    } catch (err) {
+      setRazorpayError(err instanceof Error ? err.message : "Couldn't add the new riders");
+    } finally {
+      setConfirmingRazorpay(false);
+    }
+  }
+
+  function handleExcludeRazorpayRider(phone: string) {
+    setRazorpayPreview((current) =>
+      current ? { ...current, newRiders: current.newRiders.filter((r) => r.phone !== phone) } : current,
     );
   }
 
   return (
     <div>
+      {!sheetName && !hasRazorpayPaymentLink && (
+        <Alert variant="warning" className="mb-0">
+          This event has no registration sheet (<code>registeredGoogleDataXLS</code>) and no Razorpay payment link
+          configured — nothing to sync from.
+        </Alert>
+      )}
+
+      {sheetName && (
+        <>
       <p className="text-muted mb-3">
         Reads the <code>{sheetName}</code> tab of the shared registrations spreadsheet and shows any new riders not
         already registered for this event, plus any already-registered rider who&apos;s connected Strava since —
@@ -240,6 +298,91 @@ export default function RegistrationSyncPanel({
       <Button onClick={handleCheck} disabled={checking}>
         {checking ? "Checking…" : "Check for new registrations"}
       </Button>
+        </>
+      )}
+
+      {sheetName && hasRazorpayPaymentLink && <hr className="my-4" />}
+
+      {hasRazorpayPaymentLink && (
+        <div>
+          <p className="text-muted mb-3">
+            Reads captured payments directly from Razorpay&apos;s API — no manual Excel export or Google Sheet
+            update needed — and shows any new riders not already registered for this event.
+          </p>
+
+          {razorpayError && <Alert variant="danger">{razorpayError}</Alert>}
+
+          {razorpayAddedCount !== null && (
+            <Alert variant="success">
+              Added {razorpayAddedCount} new rider{razorpayAddedCount === 1 ? "" : "s"} to this event.
+            </Alert>
+          )}
+
+          {razorpayPreview && razorpayPreview.newRiders.length === 0 && (
+            <Alert variant="info">No new users — all captured Razorpay payments are already registered.</Alert>
+          )}
+
+          {razorpayPreview && razorpayPreview.newRiders.length > 0 && (
+            <Alert variant="warning">
+              <p className="fw-semibold mb-2">
+                {razorpayPreview.newRiders.length} new rider{razorpayPreview.newRiders.length === 1 ? "" : "s"} found
+                via Razorpay — confirm to add {razorpayPreview.newRiders.length === 1 ? "it" : "them"} to this event.
+              </p>
+              <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                <Table size="sm" bordered className="mb-3 bg-white">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Phone</th>
+                      <th>City</th>
+                      <th>State</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {razorpayPreview.newRiders.map((rider) => (
+                      <tr key={rider.phone} className="table-warning">
+                        <td>{rider.full_name || "—"}</td>
+                        <td>{rider.phone}</td>
+                        <td>{rider.city || "—"}</td>
+                        <td>{rider.state || "—"}</td>
+                        <td>
+                          <Button
+                            size="sm"
+                            variant="outline-danger"
+                            onClick={() => handleExcludeRazorpayRider(rider.phone)}
+                            disabled={confirmingRazorpay}
+                            title="Don't add this one — remove it from the list before confirming"
+                          >
+                            <i className="bi bi-trash3" aria-hidden />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </div>
+              <div className="d-flex gap-2">
+                <Button size="sm" onClick={handleConfirmRazorpay} disabled={confirmingRazorpay}>
+                  {confirmingRazorpay ? "Adding…" : `Confirm and add ${razorpayPreview.newRiders.length}`}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline-secondary"
+                  onClick={() => setRazorpayPreview(null)}
+                  disabled={confirmingRazorpay}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </Alert>
+          )}
+
+          <Button onClick={handleCheckRazorpay} disabled={checkingRazorpay}>
+            {checkingRazorpay ? "Checking…" : "Check Razorpay for new registrations"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
