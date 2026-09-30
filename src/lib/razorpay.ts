@@ -45,6 +45,7 @@ type RawRazorpayPayment = {
   status: string;
   contact?: string;
   email?: string;
+  amount: number;
   created_at: number;
   notes?: Record<string, unknown>;
 };
@@ -53,6 +54,7 @@ export type RazorpayCapturedPayment = {
   id: string;
   contact: string | null;
   email: string | null;
+  amount: number;
   createdAt: string;
   notes: {
     full_name?: string;
@@ -90,6 +92,7 @@ export async function fetchCapturedRazorpayPayments(fromUnix: number, toUnix: nu
         id: p.id,
         contact: typeof p.contact === "string" ? p.contact : null,
         email: typeof p.email === "string" ? p.email : null,
+        amount: p.amount,
         createdAt: new Date(p.created_at * 1000).toISOString(),
         notes: {
           full_name: typeof p.notes?.full_name === "string" ? (p.notes.full_name as string) : undefined,
@@ -105,4 +108,73 @@ export async function fetchCapturedRazorpayPayments(fromUnix: number, toUnix: nu
   }
 
   return results;
+}
+
+type RawRazorpayPaymentPage = {
+  id: string;
+  short_url?: string;
+  title?: string;
+  status?: string;
+  payment_page_items?: Array<{ item?: { amount?: number } }>;
+};
+
+export type RazorpayPaymentPage = {
+  id: string;
+  shortUrl: string;
+  title: string;
+  status: string;
+  /** The page's configured price, in paise — null if it couldn't be read. */
+  amount: number | null;
+};
+
+function normalizeShortUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "").toLowerCase();
+}
+
+async function fetchAllRazorpayPaymentPages(): Promise<RazorpayPaymentPage[]> {
+  const authHeader = razorpayAuthHeader();
+  const results: RazorpayPaymentPage[] = [];
+  const PAGE_SIZE = 100;
+  let skip = 0;
+
+  for (;;) {
+    const url = `${RAZORPAY_API_BASE}/payment_pages?count=${PAGE_SIZE}&skip=${skip}`;
+    const res = await fetch(url, { headers: { Authorization: authHeader } });
+    if (!res.ok) {
+      throw new Error(`Razorpay payment pages fetch failed: ${res.status} ${await res.text()}`);
+    }
+    const body: { items?: RawRazorpayPaymentPage[] } = await res.json();
+    const items = body.items ?? [];
+
+    for (const pp of items) {
+      results.push({
+        id: pp.id,
+        shortUrl: pp.short_url ?? "",
+        title: pp.title ?? "",
+        status: pp.status ?? "",
+        amount: pp.payment_page_items?.[0]?.item?.amount ?? null,
+      });
+    }
+
+    if (items.length < PAGE_SIZE) break;
+    skip += PAGE_SIZE;
+  }
+
+  return results;
+}
+
+/**
+ * Finds the Payment Page matching an event's own `payment_link` field (the
+ * admin-maintained URL already used for the public "Join Now" button) —
+ * lets registration sync scope to exactly this event's fixed price instead
+ * of guessing by date range alone. Razorpay's API has no direct "payments
+ * for this page" endpoint (confirmed: neither the Payment nor Order entity
+ * references its originating page), so the page's own configured amount is
+ * the practical proxy. Returns null if no page's short_url matches —
+ * callers should fall back to date-range-only scoping rather than fail.
+ */
+export async function fetchRazorpayPaymentPageByShortUrl(shortUrl: string): Promise<RazorpayPaymentPage | null> {
+  const target = normalizeShortUrl(shortUrl);
+  const pages = await fetchAllRazorpayPaymentPages();
+  return pages.find((p) => normalizeShortUrl(p.shortUrl) === target) ?? null;
 }

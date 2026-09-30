@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
 import { previewRazorpayRegistrations, addRazorpayRegistrations } from "@/lib/razorpay-registrations";
+import { previewStravaLinkUpdates } from "@/lib/legacy-registrations";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ type RouteParams = { params: Promise<{ eventId: string }> };
  *       - sessionCookie: []
  *     responses:
  *       200:
- *         description: "{ capturedPayments, uniqueRegistrations, existingRiderCount, newRiders: EventRider[] }"
+ *         description: "{ capturedPayments, uniqueRegistrations, existingRiderCount, newRiders: EventRider[], stravaLinkCandidates }"
  *       400:
  *         description: Preview failed (e.g. event not found, Razorpay API error)
  */
@@ -38,8 +39,15 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const { eventId } = await params;
 
   try {
-    const preview = await previewRazorpayRegistrations(eventId);
-    return Response.json(preview);
+    // Two independent checks in one response — same pairing
+    // sync-registrations (the Google Sheet path) does, so an
+    // already-registered rider who's connected Strava since shows up
+    // here too regardless of which source added them originally.
+    const [preview, stravaLinks] = await Promise.all([
+      previewRazorpayRegistrations(eventId),
+      previewStravaLinkUpdates(eventId),
+    ]);
+    return Response.json({ ...preview, stravaLinkCandidates: stravaLinks.candidates });
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : "Preview failed" }, { status: 400 });
   }

@@ -5,7 +5,12 @@ import type { EventDoc } from "@/lib/models/event";
 import { normalizeState } from "@/lib/india-states";
 import { cleanPhone, normalizeName, normalizeCity, normalizeGender } from "@/lib/registration-normalize";
 import { invalidateEventLeaderboardCache } from "@/lib/rider-metrics";
-import { fetchCapturedRazorpayPayments, type RazorpayCapturedPayment } from "@/lib/razorpay";
+import { buildStravaByPhone, type StravaMatch } from "@/lib/legacy-registrations";
+import {
+  fetchCapturedRazorpayPayments,
+  fetchRazorpayPaymentPageByShortUrl,
+  type RazorpayCapturedPayment,
+} from "@/lib/razorpay";
 
 // Reads registrations directly from Razorpay's Payments API instead of a
 // manually-exported Google Sheet (see legacy-registrations.ts for that
@@ -18,12 +23,20 @@ export type RazorpayRegistrationPreview = {
   uniqueRegistrations: number;
   existingRiderCount: number;
   newRiders: EventRider[];
+  /** True if payments were narrowed to this event's exact registration
+   * price (its payment_link matched a real Payment Page) — false means
+   * only the date-range fallback applied, which is less precise. */
+  scopedByExactAmount: boolean;
 };
 
 // No two events run at overlapping times (confirmed with the admin) — so a
-// generous fixed lookback before the event's own start date is safe: it
-// can't reach back into a *different* event's own registration window.
-// Riders can still register up through "now" (the event may be live).
+// generous fixed lookback before the event's own start date is a safe
+// *fallback* scope: it can't reach back into a different event's own
+// registration window. Riders can still register up through "now" (the
+// event may be live). Used on its own when payment_link doesn't resolve to
+// a real Payment Page; otherwise combined with the exact-amount filter
+// below for real precision, since Razorpay's API has no "payments for this
+// page" endpoint (confirmed directly against real payment/order data).
 const REGISTRATION_LOOKBACK_DAYS = 90;
 
 async function getEventRidersOrThrow(eventId: string): Promise<{
@@ -48,25 +61,61 @@ function registrationWindow(event: EventDoc): { fromUnix: number; toUnix: number
 }
 
 /**
+ * Fetches this event's captured payments, narrowed to its exact
+ * registration price when possible. Looks up the Payment Page matching the
+ * event's own `payment_link` field (same URL the public "Join Now" button
+ * uses) and, if found, filters to only payments at that page's configured
+ * amount — on top of the date-range fallback, not instead of it, since a
+ * lookup failure (payment_link unset, or stale/not matching any page)
+ * shouldn't break the sync entirely.
+ */
+async function fetchScopedPayments(
+  event: EventDoc,
+): Promise<{ payments: RazorpayCapturedPayment[]; scopedByExactAmount: boolean }> {
+  const { fromUnix, toUnix } = registrationWindow(event);
+  const payments = await fetchCapturedRazorpayPayments(fromUnix, toUnix);
+
+  if (!event.payment_link) {
+    return { payments, scopedByExactAmount: false };
+  }
+
+  const page = await fetchRazorpayPaymentPageByShortUrl(event.payment_link).catch(() => null);
+  if (!page || page.amount == null) {
+    return { payments, scopedByExactAmount: false };
+  }
+
+  return { payments: payments.filter((p) => p.amount === page.amount), scopedByExactAmount: true };
+}
+
+/**
  * One captured payment -> one rider record. Oldest-first so a rider's
  * FIRST captured payment wins on a duplicate phone (e.g. a retried
  * payment) — same "first occurrence wins" rule buildRidersFromSheet uses
  * for the Google Sheet path.
+ *
+ * `stravaByPhone` cross-references every phone against Strava connections
+ * already on the platform (same lookup buildRidersFromSheet uses) so a
+ * rider who connected Strava before paying shows up already linked, rather
+ * than needing a separate "Strava-link candidates" pass afterward.
  */
-function dedupedRidersFromPayments(payments: RazorpayCapturedPayment[]): Record<string, EventRider> {
+function dedupedRidersFromPayments(
+  payments: RazorpayCapturedPayment[],
+  stravaByPhone: Map<string, StravaMatch>,
+): Record<string, EventRider> {
   const riders: Record<string, EventRider> = {};
   const sorted = [...payments].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   for (const payment of sorted) {
     const phone = cleanPhone(payment.contact ?? "");
     if (!phone || riders[phone]) continue;
+    const strava = stravaByPhone.get(phone);
     riders[phone] = {
       phone,
       full_name: normalizeName(payment.notes.full_name ?? ""),
       gender: normalizeGender(payment.notes.gender ?? ""),
       city: normalizeCity(payment.notes.city ?? ""),
       state: normalizeState(payment.notes.state ?? ""),
-      stravaId: "",
-      profile: "",
+      stravaId: strava?.stravaId ?? "",
+      profile: strava?.profile ?? "",
     };
   }
   return riders;
@@ -80,9 +129,11 @@ function dedupedRidersFromPayments(payments: RazorpayCapturedPayment[]): Record<
  */
 export async function previewRazorpayRegistrations(eventId: string): Promise<RazorpayRegistrationPreview> {
   const { data, existingRiders } = await getEventRidersOrThrow(eventId);
-  const { fromUnix, toUnix } = registrationWindow(data);
-  const payments = await fetchCapturedRazorpayPayments(fromUnix, toUnix);
-  const riders = dedupedRidersFromPayments(payments);
+  const [{ payments, scopedByExactAmount }, stravaByPhone] = await Promise.all([
+    fetchScopedPayments(data),
+    buildStravaByPhone(),
+  ]);
+  const riders = dedupedRidersFromPayments(payments, stravaByPhone);
 
   const newRiders = Object.values(riders)
     .filter((rider) => !existingRiders[rider.phone])
@@ -93,6 +144,7 @@ export async function previewRazorpayRegistrations(eventId: string): Promise<Raz
     uniqueRegistrations: Object.keys(riders).length,
     existingRiderCount: Object.keys(existingRiders).length,
     newRiders,
+    scopedByExactAmount,
   };
 }
 
@@ -103,9 +155,8 @@ export async function previewRazorpayRegistrations(eventId: string): Promise<Raz
  */
 export async function addRazorpayRegistrations(eventId: string, phones: string[]): Promise<{ added: number }> {
   const { docRef, data, existingRiders } = await getEventRidersOrThrow(eventId);
-  const { fromUnix, toUnix } = registrationWindow(data);
-  const payments = await fetchCapturedRazorpayPayments(fromUnix, toUnix);
-  const riders = dedupedRidersFromPayments(payments);
+  const [{ payments }, stravaByPhone] = await Promise.all([fetchScopedPayments(data), buildStravaByPhone()]);
+  const riders = dedupedRidersFromPayments(payments, stravaByPhone);
 
   const requested = new Set(phones.map((phone) => cleanPhone(phone)).filter(Boolean));
   const updates: Record<string, EventRider> = {};

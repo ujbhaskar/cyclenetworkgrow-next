@@ -59,7 +59,7 @@ function toPublicRider(rider: StoredEventRider): EventRider {
   };
 }
 
-type StravaMatch = {
+export type StravaMatch = {
   stravaId: string;
   profile: string;
   city: string;
@@ -71,11 +71,11 @@ type StravaMatch = {
 
 /**
  * Every Strava-connected rider on the platform, keyed by their connected
- * phone — the shared lookup behind buildRidersFromSheet (new registrations)
- * and previewStravaLinkUpdates (existing registrations that connected
- * Strava after they were added).
+ * phone — the shared lookup behind buildRidersFromSheet (new registrations),
+ * previewStravaLinkUpdates (existing registrations that connected Strava
+ * after they were added), and the Razorpay sync path (razorpay-registrations.ts).
  */
-async function buildStravaByPhone(): Promise<Map<string, StravaMatch>> {
+export async function buildStravaByPhone(): Promise<Map<string, StravaMatch>> {
   const tokensSnapshot = await adminDb.collection(ATHLETE_TOKENS_COLLECTION).get();
   const stravaByPhone = new Map<string, StravaMatch>();
   tokensSnapshot.docs.forEach((tokenDoc) => {
