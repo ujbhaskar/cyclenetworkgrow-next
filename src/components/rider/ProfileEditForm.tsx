@@ -126,7 +126,7 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
         <textarea
           id="address"
           className="form-control"
-          rows={2}
+          rows={4}
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />

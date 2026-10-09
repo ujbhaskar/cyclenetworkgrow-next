@@ -154,7 +154,7 @@ export default function EventFormModal({
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>Description</Form.Label>
-              <Form.Control as="textarea" rows={2} value={form.description} onChange={(e) => set("description", e.target.value)} />
+              <Form.Control as="textarea" rows={4} value={form.description} onChange={(e) => set("description", e.target.value)} />
             </Form.Group>
 
             <Form.Group className="mb-3">
