@@ -199,6 +199,8 @@ export default function UsersTable({
             <th>Phone</th>
             <th>City</th>
             <th>State</th>
+            <th>Address</th>
+            <th>Pincode</th>
             <th>Role</th>
             <th>Joined</th>
             <th />
@@ -212,6 +214,8 @@ export default function UsersTable({
               <td>{user.phone ?? "—"}</td>
               <td>{user.city ?? "—"}</td>
               <td>{user.state ?? "—"}</td>
+              <td style={{ minWidth: 200 }}>{user.address || "—"}</td>
+              <td>{user.pincode || "—"}</td>
               <td>
                 <Form.Select
                   size="sm"

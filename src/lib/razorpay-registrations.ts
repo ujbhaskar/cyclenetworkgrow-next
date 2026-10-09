@@ -174,3 +174,33 @@ export async function addRazorpayRegistrations(eventId: string, phones: string[]
 
   return { added };
 }
+
+/**
+ * Address/pin each rider typed on the registration payment page, by phone
+ * (first captured payment wins, as in dedupedRidersFromPayments). Not
+ * stored on the event's riders map — read live from Razorpay, only for the
+ * admin report's address fallback. Empty on any Razorpay failure so the
+ * report still downloads, just without this fallback.
+ */
+export async function getRegistrationAddressesByPhone(
+  eventId: string,
+): Promise<Map<string, { address: string; pincode: string }>> {
+  const result = new Map<string, { address: string; pincode: string }>();
+  try {
+    const { data } = await getEventRidersOrThrow(eventId);
+    const { payments } = await fetchScopedPayments(data);
+    [...payments]
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .forEach((payment) => {
+        const phone = cleanPhone(payment.contact ?? "");
+        if (!phone || result.has(phone)) return;
+        result.set(phone, {
+          address: (payment.notes.address ?? "").trim(),
+          pincode: (payment.notes.pincode ?? "").trim(),
+        });
+      });
+  } catch {
+    // fall through with whatever was collected
+  }
+  return result;
+}

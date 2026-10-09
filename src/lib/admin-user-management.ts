@@ -54,6 +54,8 @@ export type AdminEditableProfileFields = {
   city?: string;
   state?: string;
   phone?: string;
+  address?: string;
+  pincode?: string;
 };
 
 /**
@@ -78,7 +80,13 @@ export async function updateUserProfileByAdmin(uid: string, fields: AdminEditabl
   const phone = fields.phone?.trim() ? normalizePhone(fields.phone) : null;
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || existing?.email || phone || "User";
 
-  await ref.set({ firstName, lastName, city, state, phone, displayName }, { merge: true });
+  // Only touched when the caller sent them, so older clients that don't know
+  // about these fields can't blank an existing address.
+  const optional: { address?: string | null; pincode?: string | null } = {};
+  if (fields.address !== undefined) optional.address = fields.address.trim() || null;
+  if (fields.pincode !== undefined) optional.pincode = fields.pincode.trim() || null;
+
+  await ref.set({ firstName, lastName, city, state, phone, displayName, ...optional }, { merge: true });
   invalidateEventLeaderboardCache();
 }
 

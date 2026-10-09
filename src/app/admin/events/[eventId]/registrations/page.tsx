@@ -28,7 +28,12 @@ export default async function AdminEventRegistrationsPage({
         />
       </div>
 
-      <h2 className="h5 mb-3">Current Riders</h2>
+      <div className="d-flex align-items-center gap-3 mb-3">
+        <h2 className="h5 mb-0">Current Riders</h2>
+        <a className="btn btn-outline-success btn-sm" href={`/api/admin/events/${event.id}/report`}>
+          Download report (Excel)
+        </a>
+      </div>
       <LegacyRidersTable eventId={event.id} riders={event.riders} />
     </div>
   );

@@ -5,7 +5,7 @@ import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Button from "react-bootstrap/Button";
 import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
-import type { UserProfile } from "@/lib/models/user";
+import { PINCODE_PATTERN, type UserProfile } from "@/lib/models/user";
 
 // Riders often typo their name/city/state at signup, or Strava's
 // free-text profile fields carry the mistake through — and aren't always
@@ -32,6 +32,8 @@ export default function EditUserModal({
   const [city, setCity] = useState(user?.city ?? "");
   const [state, setState] = useState(user?.state ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
+  const [address, setAddress] = useState(user?.address ?? "");
+  const [pincode, setPincode] = useState(user?.pincode ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,12 +41,16 @@ export default function EditUserModal({
     e.preventDefault();
     if (!user) return;
     setError(null);
+    if (pincode.trim() && !PINCODE_PATTERN.test(pincode.trim())) {
+      setError("Pincode must be 6 digits.");
+      return;
+    }
     setPending(true);
     try {
       const res = await fetch(`/api/admin/users/${user.uid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, city, state, phone }),
+        body: JSON.stringify({ firstName, lastName, city, state, phone, address, pincode }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -58,6 +64,8 @@ export default function EditUserModal({
         city: city.trim() || null,
         state: state.trim() || null,
         phone: phone.trim() || null,
+        address: address.trim() || null,
+        pincode: pincode.trim() || null,
         displayName,
       });
     } catch (err) {
@@ -100,6 +108,20 @@ export default function EditUserModal({
                 </option>
               ))}
             </Form.Select>
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Address</Form.Label>
+            <Form.Control as="textarea" rows={4} value={address} onChange={(e) => setAddress(e.target.value)} />
+          </Form.Group>
+          <Form.Group className="mb-3">
+            <Form.Label>Pincode</Form.Label>
+            <Form.Control
+              value={pincode}
+              onChange={(e) => setPincode(e.target.value)}
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="6 digits"
+            />
           </Form.Group>
           {error && <p className="text-danger small">{error}</p>}
           <div className="d-flex gap-2">

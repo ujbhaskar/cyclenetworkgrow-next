@@ -61,6 +61,8 @@ export type RazorpayCapturedPayment = {
     gender?: string;
     city?: string;
     state?: string;
+    address?: string;
+    pincode?: string;
   };
 };
 
@@ -99,6 +101,8 @@ export async function fetchCapturedRazorpayPayments(fromUnix: number, toUnix: nu
           gender: typeof p.notes?.gender === "string" ? (p.notes.gender as string) : undefined,
           city: typeof p.notes?.city === "string" ? (p.notes.city as string) : undefined,
           state: typeof p.notes?.state === "string" ? (p.notes.state as string) : undefined,
+          address: typeof p.notes?.address === "string" ? (p.notes.address as string) : undefined,
+          pincode: typeof p.notes?.pincode === "string" ? (p.notes.pincode as string) : undefined,
         },
       });
     }

@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
 import { deleteUserCompletely, setUserRole, updateUserProfileByAdmin } from "@/lib/admin-user-management";
-import { ROLES } from "@/lib/models/user";
+import { PINCODE_PATTERN, ROLES } from "@/lib/models/user";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +45,8 @@ type RouteParams = { params: Promise<{ uid: string }> };
  *               city: { type: string }
  *               state: { type: string }
  *               phone: { type: string }
+ *               address: { type: string }
+ *               pincode: { type: string, description: 6-digit Indian PIN code }
  *     responses:
  *       200:
  *         description: Updated
@@ -75,19 +77,25 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   if (typeof body.firstName === "string") {
+    const pincode = typeof body.pincode === "string" ? body.pincode.trim() : undefined;
+    if (pincode && !PINCODE_PATTERN.test(pincode)) {
+      return Response.json({ error: "Pincode must be 6 digits" }, { status: 400 });
+    }
     await updateUserProfileByAdmin(uid, {
       firstName: body.firstName,
       lastName: typeof body.lastName === "string" ? body.lastName : undefined,
       city: typeof body.city === "string" ? body.city : undefined,
       state: typeof body.state === "string" ? body.state : undefined,
       phone: typeof body.phone === "string" ? body.phone : undefined,
+      address: typeof body.address === "string" ? body.address : undefined,
+      pincode,
     });
 
     await adminDb.collection("auditLog").add({
       actorUid: session.uid,
       action: "admin_edited_user_profile",
       targetUid: uid,
-      changes: { firstName: body.firstName, lastName: body.lastName, city: body.city, state: body.state, phone: body.phone },
+      changes: { firstName: body.firstName, lastName: body.lastName, city: body.city, state: body.state, phone: body.phone, address: body.address, pincode: body.pincode },
       timestamp: new Date().toISOString(),
     });
 

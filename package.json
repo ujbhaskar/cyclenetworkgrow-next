@@ -12,6 +12,7 @@
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "compress-json": "^3.4.0",
+    "exceljs": "^4.4.0",
     "firebase": "^12.18.0",
     "firebase-admin": "^14.3.0",
     "googleapis": "^181.0.0",

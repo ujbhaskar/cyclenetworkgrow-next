@@ -62,7 +62,7 @@ function formatDistanceLabel(km: number | null): string {
   return km === null ? "Distance TBA" : `${km.toLocaleString()} km`;
 }
 
-function mapEventCard(id: string, data: EventDoc): EventCard {
+export function mapEventCard(id: string, data: EventDoc): EventCard {
   const targetDistanceKm = parseLegacyDistanceKm(data.distance);
   return {
     id,
