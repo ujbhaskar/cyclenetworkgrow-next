@@ -30,6 +30,8 @@ if (missing.length) {
 }
 
 const port = Number(process.env.SMTP_PORT) || 587;
+// Same rule as src/lib/email.ts: replies go to MAIL_REPLY_TO, or the address inside MAIL_FROM.
+const replyTo = process.env.MAIL_REPLY_TO || from.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] || from;
 const mailer = nodemailer.createTransport({
   host,
   port,
@@ -45,6 +47,7 @@ try {
   console.log(`✔ Connected to ${host}:${port} and logged in as ${user}`);
   const info = await mailer.sendMail({
     from,
+    replyTo,
     to,
     subject: "Cycle Network Grow — test email",
     text: "If you can read this, the shop's email setup works.",

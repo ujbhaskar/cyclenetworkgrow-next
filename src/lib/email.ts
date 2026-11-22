@@ -14,8 +14,13 @@ function transport() {
   if (!host || !user || !pass || !from) return null;
 
   const port = Number(process.env.SMTP_PORT) || 587;
+  // Some providers (Brevo, with a free-mail sender like a Gmail address) send
+  // from an address of their own, which has no inbox — so point replies at a
+  // real mailbox: MAIL_REPLY_TO, or else the address inside MAIL_FROM.
+  const replyTo = process.env.MAIL_REPLY_TO || from.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1] || from;
   return {
     from,
+    replyTo,
     mailer: nodemailer.createTransport({
       host,
       port,
@@ -37,7 +42,7 @@ export async function sendEmail(to: string, content: { subject: string; html: st
     return false;
   }
   try {
-    await t.mailer.sendMail({ from: t.from, to, subject: content.subject, html: content.html, text: content.text });
+    await t.mailer.sendMail({ from: t.from, replyTo: t.replyTo, to, subject: content.subject, html: content.html, text: content.text });
     return true;
   } catch (err) {
     console.error(`[email] couldn't send "${content.subject}":`, err);
