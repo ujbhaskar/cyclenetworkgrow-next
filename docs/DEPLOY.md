@@ -224,10 +224,37 @@ a real Next.js server on Cloud Run — instead of chasing further workarounds. T
 Hosting site and Cloud Function were deleted; `firebase.json` no longer has a `hosting`
 block.
 
-## Shop orders
+## Shop orders and emails
 
 Unpaid shop orders expire 15 minutes after being placed (the Razorpay payment link expires
 with them), and an admin can only cancel or edit an unpaid order once that window has closed.
 An order can be deleted by an admin only 7 days after it was placed — before that, cancel it.
-Cancelling a paid order does not refund it; refund in the Razorpay dashboard. No emails are
-sent; admins see everything on /admin/shop/orders.
+Cancelling a paid order does not refund it; refund in the Razorpay dashboard.
+
+### Emails
+
+On a paid order, when courier details are added or changed, and when an order is cancelled,
+the **buyer** and the **admins** are emailed (`src/lib/shop-notifications.ts`). Admin alerts go
+to `ADMIN_NOTIFY_EMAILS` (comma-separated) if set, otherwise to every admin account's email.
+Buyers who signed up with only a phone number have no real email and get nothing.
+
+Sending is plain SMTP via nodemailer, so any provider works. The live site uses **Brevo**
+(free plan, ~300 emails/day): server `smtp-relay.brevo.com`, port 587, the SMTP login and SMTP key
+from Brevo's *SMTP & API → SMTP* page, and the verified sender `cyclenetworkgrow@gmail.com`.
+Don't switch on Brevo's "Activate for SMTP keys" IP blocking — the site's outgoing address isn't fixed. Variables: `SMTP_HOST`, `SMTP_PORT` (587 STARTTLS or 465 SSL),
+`SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` (e.g. `Cycle Network Grow <orders@yourdomain.com>`).
+
+If any is missing, emails are skipped with a `[email] SMTP isn't configured` log line and the
+shop works as normal. Check a setup with `node scripts/send-test-email.mjs you@example.com`.
+For the deployed site, put the non-secret values in `apphosting.yaml` `env:` and the password
+as a secret:
+
+```bash
+printf '%s' 'THE-SMTP-PASSWORD' | firebase apphosting:secrets:set SMTP_PASS --project challenge1177 --force --data-file -
+firebase apphosting:secrets:grantaccess SMTP_PASS --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+```
+
+Then reference it in `apphosting.yaml` like the Razorpay secrets (`variable: SMTP_PASS`,
+`secret: SMTP_PASS`). Add the reference **after** the secret exists — a reference to a missing
+secret fails the rollout. Use a sender address on a domain verified with the provider
+(SPF/DKIM), or the emails are likely to land in spam.

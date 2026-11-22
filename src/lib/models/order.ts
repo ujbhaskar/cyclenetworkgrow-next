@@ -138,6 +138,8 @@ export type ShopOrder = {
   cancelReason: string | null;
   /** Set by the admin once the parcel is handed to a courier. */
   shipment: OrderShipment | null;
+  /** The site's public origin when the order was placed — emails link back to it. */
+  origin: string;
   /** Admin-only: pinned orders sort to the top of the admin list. */
   pinned: boolean;
   /** Admin-only: raised when an order needs attention (never shown to the rider). */

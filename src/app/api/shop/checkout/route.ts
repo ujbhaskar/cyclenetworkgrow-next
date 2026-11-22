@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic";
  *       200:
  *         description: "{ url: string, orderId: string }"
  *       400:
- *         description: Empty cart, an item that can't be bought, or the profile has no delivery address
+ *         description: Empty cart, an item that can't be bought, or the profile has no delivery address or real email
  *       404:
  *         description: Shop not available
  *       429:
@@ -68,6 +68,14 @@ export async function POST(request: Request) {
   if (!profile?.address || !profile.city || !profile.state || !profile.pincode) {
     return Response.json(
       { error: "Please add your full delivery address (address, city, state, pincode) to your profile first.", code: "address_missing" },
+      { status: 400 },
+    );
+  }
+  // A real email is needed for payment receipts and order updates. Phone-only
+  // accounts carry an internal placeholder address instead.
+  if (!profile.email || isSyntheticEmail(profile.email)) {
+    return Response.json(
+      { error: "Please add your email address to your profile first.", code: "email_missing" },
       { status: 400 },
     );
   }
@@ -114,7 +122,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const order = await createPendingOrder({ uid: session.uid, items, amount, shipTo });
+  const order = await createPendingOrder({ uid: session.uid, items, amount, shipTo, origin: getSiteOrigin(request) });
 
   const summary = items.map((i) => `${i.qty} × ${i.productTitle}`).join(", ");
   try {
@@ -130,7 +138,18 @@ export async function POST(request: Request) {
         ...(phone.length === 10 ? { contact: `+91${phone}` } : {}),
         ...(shipTo.email ? { email: shipTo.email } : {}),
       },
-      notes: { orderId: order.id, orderNumber: order.orderNumber, uid: session.uid },
+      // Shown on the payment in the Razorpay dashboard, so the admin can tell who
+      // bought what without opening this site. (Not the event-registration keys
+      // full_name/gender/city/state/address/pincode — those are read by the
+      // registration sync.) Razorpay limits each note value to 256 characters.
+      notes: {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        uid: session.uid,
+        buyer_name: shipTo.name.slice(0, 250),
+        buyer_phone: shipTo.phone,
+        items: summary.slice(0, 250),
+      },
     });
     await attachPaymentLink(order.id, { id: link.id, url: link.shortUrl });
     return Response.json({ url: link.shortUrl, orderId: order.id });

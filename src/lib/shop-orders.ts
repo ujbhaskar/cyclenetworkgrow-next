@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { ORDER_STATUSES, canDeleteOrder, deletableFrom, isPaymentWindowOpen, paymentDeadline, paymentWindowMessage, orderItemKey, type OrderFlag, type OrderItem, type OrderStatus, type OrderShipTo, type OrderShipment, type ShipmentInput, type ShopOrder } from "@/lib/models/order";
 import { removeOrderedFromCart } from "@/lib/shop-cart";
 import { cancelRazorpayPaymentLink, fetchRazorpayPaymentDetails, fetchRazorpayPaymentLink } from "@/lib/razorpay";
+import { notifyOrderPaid } from "@/lib/shop-notifications";
 
 // Own collections (not generic names) — challenge1177's Firestore is shared
 // with the legacy letscng app.
@@ -41,6 +42,7 @@ function toOrder(id: string, d: FirebaseFirestore.DocumentData): ShopOrder {
     cancelledAt: str(d.cancelledAt) || null,
     cancelReason: str(d.cancelReason) || null,
     shipment: toShipment(d.shipment),
+    origin: str(d.origin),
     pinned: d.pinned === true,
     flag: toFlag(d.flag),
     createdAt: str(d.createdAt),
@@ -104,6 +106,7 @@ export async function createPendingOrder(input: {
   items: OrderItem[];
   amount: number;
   shipTo: OrderShipTo;
+  origin: string;
 }): Promise<{ id: string; orderNumber: string }> {
   const counterRef = adminDb.doc(COUNTER);
   const orderRef = adminDb.collection(ORDERS).doc();
@@ -180,6 +183,9 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string):
     await removeOrderedFromCart(flipped.uid, flipped.items).catch((err) =>
       console.error("[shop-orders] cart clean-up failed:", err),
     );
+    // Email the buyer and the admins. Never blocks or fails the payment.
+    const paid = await getOrder(orderId);
+    if (paid) await notifyOrderPaid(paid).catch((err) => console.error("[shop-orders] notification failed:", err));
   }
 }
 

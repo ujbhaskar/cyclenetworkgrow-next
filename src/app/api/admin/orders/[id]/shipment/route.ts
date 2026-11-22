@@ -1,7 +1,8 @@
 import { requireRole } from "@/lib/auth/dal";
 import { adminDb } from "@/lib/firebase/admin";
 import { parseShipmentInput } from "@/lib/models/order";
-import { clearOrderShipment, setOrderShipment } from "@/lib/shop-orders";
+import { clearOrderShipment, getOrder, setOrderShipment } from "@/lib/shop-orders";
+import { notifyShipment } from "@/lib/shop-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ type RouteParams = { params: Promise<{ id: string }> };
  * /api/admin/orders/{id}/shipment:
  *   put:
  *     summary: Set or update the courier details on a paid shop order
- *     description: Requires admin role. The rider sees these on their order page and can track the parcel themselves. `trackingUrl` is optional and must be http(s).
+ *     description: Requires admin role. The rider sees these on their order page and can track the parcel themselves, and the buyer and admins are emailed when the courier, tracking number or link is new or changed. `trackingUrl` is optional and must be http(s).
  *     tags:
  *       - Admin
  *     security:
@@ -64,7 +65,21 @@ export async function PUT(request: Request, { params }: RouteParams) {
     trackingNumber: parsed.input.trackingNumber,
     timestamp: new Date().toISOString(),
   });
-  return Response.json({ shipment: result.shipment });
+
+  // Email the buyer (and the admins) — but only when something they'd care
+  // about changed, so fixing a typo in the note doesn't send another email.
+  const prev = result.previous;
+  const changed =
+    !prev ||
+    prev.courier !== result.shipment.courier ||
+    prev.trackingNumber !== result.shipment.trackingNumber ||
+    prev.trackingUrl !== result.shipment.trackingUrl;
+  if (changed) {
+    const order = await getOrder(id);
+    if (order) await notifyShipment(order);
+  }
+
+  return Response.json({ shipment: result.shipment, emailed: changed });
 }
 
 /**

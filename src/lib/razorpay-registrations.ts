@@ -73,7 +73,10 @@ async function fetchScopedPayments(
   event: EventDoc,
 ): Promise<{ payments: RazorpayCapturedPayment[]; scopedByExactAmount: boolean }> {
   const { fromUnix, toUnix } = registrationWindow(event);
-  const payments = await fetchCapturedRazorpayPayments(fromUnix, toUnix);
+  // Shop purchases (they carry an orderNumber note) share this Razorpay account;
+  // one that happens to cost the same as the registration fee must not show up
+  // as a new rider.
+  const payments = (await fetchCapturedRazorpayPayments(fromUnix, toUnix)).filter((p) => !p.notes.orderNumber);
 
   if (!event.payment_link) {
     return { payments, scopedByExactAmount: false };

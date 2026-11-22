@@ -3,6 +3,7 @@ import { verifySession } from "@/lib/auth/dal";
 import { requireNavAccess } from "@/lib/nav-links";
 import { resolveCart } from "@/lib/shop-cart";
 import { getUserProfile } from "@/lib/user-profile";
+import { isSyntheticEmail } from "@/lib/auth/phone";
 import CartView from "@/components/shop/CartView";
 
 export const metadata = { title: "My cart" };
@@ -21,7 +22,8 @@ export default async function CartPage() {
         delivery={{
           name: profile?.displayName ?? "",
           phone: profile?.phone ?? "",
-          email: profile?.email ?? "",
+          // Phone-only accounts carry an internal placeholder — treat it as no email.
+          email: profile?.email && !isSyntheticEmail(profile.email) ? profile.email : "",
           address: profile?.address ?? "",
           city: profile?.city ?? "",
           state: profile?.state ?? "",

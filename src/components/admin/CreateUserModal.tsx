@@ -82,6 +82,9 @@ export default function CreateUserModal({
             <Form.Group className="mb-3">
               <Form.Label>Email or phone number</Form.Label>
               <Form.Control value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+              <Form.Text className="text-muted">
+                A rider created with only a phone number must add an email on their profile before they can buy in the shop.
+              </Form.Text>
             </Form.Group>
             <Form.Group className="mb-3">
               <Form.Label>First name</Form.Label>

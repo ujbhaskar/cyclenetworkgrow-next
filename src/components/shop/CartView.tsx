@@ -21,7 +21,8 @@ export default function CartView({ cart, delivery }: { cart: ResolvedCart; deliv
   const [error, setError] = useState<string | null>(null);
 
   const addressComplete = Boolean(delivery.address && delivery.city && delivery.state && delivery.pincode);
-  const canPay = cart.lines.length > 0 && !cart.hasProblems && addressComplete && cart.subtotal >= 1;
+  const emailOk = Boolean(delivery.email);
+  const canPay = cart.lines.length > 0 && !cart.hasProblems && addressComplete && emailOk && cart.subtotal >= 1;
 
   async function change(key: string, request: () => Promise<Response>) {
     setError(null);
@@ -151,11 +152,13 @@ export default function CartView({ cart, delivery }: { cart: ResolvedCart; deliv
             </div>
             <div>
               <i className="bi bi-envelope me-1" aria-hidden />
-              {delivery.email || "—"}
+              {delivery.email || <span className="text-danger">No email on your profile</span>}
             </div>
           </div>
           <Link href="/profile" className="small d-inline-block mt-2">
-            {addressComplete ? "Change in my profile" : "Add my address in my profile"}
+            {addressComplete && emailOk
+              ? "Change in my profile"
+              : `Add my ${!addressComplete && !emailOk ? "address and email" : !addressComplete ? "address" : "email"} in my profile`}
           </Link>
         </div>
 

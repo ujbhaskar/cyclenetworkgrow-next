@@ -63,6 +63,8 @@ export type RazorpayCapturedPayment = {
     state?: string;
     address?: string;
     pincode?: string;
+    /** Set only on shop payments (see /api/shop/checkout) — never on event registrations. */
+    orderNumber?: string;
   };
 };
 
@@ -103,6 +105,7 @@ export async function fetchCapturedRazorpayPayments(fromUnix: number, toUnix: nu
           state: typeof p.notes?.state === "string" ? (p.notes.state as string) : undefined,
           address: typeof p.notes?.address === "string" ? (p.notes.address as string) : undefined,
           pincode: typeof p.notes?.pincode === "string" ? (p.notes.pincode as string) : undefined,
+          orderNumber: typeof p.notes?.orderNumber === "string" ? (p.notes.orderNumber as string) : undefined,
         },
       });
     }

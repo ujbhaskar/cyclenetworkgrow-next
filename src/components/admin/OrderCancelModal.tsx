@@ -73,7 +73,7 @@ export default function OrderCancelModal({
               autoFocus
             />
             <Form.Text className="text-muted">
-              The order shows as Cancelled to the rider, with this reason.
+              The rider is emailed that the order was cancelled, and sees this reason. Admins get a copy.
             </Form.Text>
           </Form.Group>
           {error && <p className="text-danger small">{error}</p>}

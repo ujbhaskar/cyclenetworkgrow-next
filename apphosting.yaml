@@ -27,6 +27,29 @@ env:
     secret: RAZORPAY_KEY_SECRET
     availability:
       - RUNTIME
+  # Shop emails (src/lib/email.ts) via Brevo SMTP. SMTP_PASS is a Secret Manager
+  # secret (the Brevo SMTP key) — created with `firebase apphosting:secrets:set`
+  # + `:grantaccess`, see docs/DEPLOY.md's Shop orders and emails section.
+  - variable: SMTP_PASS
+    secret: SMTP_PASS
+    availability:
+      - RUNTIME
+  - variable: SMTP_HOST
+    value: smtp-relay.brevo.com
+    availability:
+      - RUNTIME
+  - variable: SMTP_PORT
+    value: "587"
+    availability:
+      - RUNTIME
+  - variable: SMTP_USER
+    value: c49067001@smtp-brevo.com
+    availability:
+      - RUNTIME
+  - variable: MAIL_FROM
+    value: "Cycle Network Grow <cyclenetworkgrow@gmail.com>"
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more

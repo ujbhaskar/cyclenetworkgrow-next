@@ -92,17 +92,20 @@ export default function ProfileEditForm({ profile }: { profile: UserProfile }) {
 
       <div className="mb-3">
         <label htmlFor="email" className="form-label">
-          Email
+          Email <span className="text-danger">*</span>
         </label>
         <input
           id="email"
           type="email"
           className="form-control"
+          required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
         />
-        <div className="form-text">Used to log in — changing it updates your sign-in email too.</div>
+        <div className="form-text">
+          Required. Used to log in and for order and payment updates — changing it updates your sign-in email too.
+        </div>
       </div>
 
       <div className="mb-3">

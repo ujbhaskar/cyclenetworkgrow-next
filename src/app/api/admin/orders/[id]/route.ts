@@ -3,6 +3,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { INDIAN_STATES_AND_UTS } from "@/lib/models/india-states";
 import { parseShipToInput } from "@/lib/models/order";
 import { cancelOrder, deleteOrder, setOrderFlag, setOrderPinned, updateOrderShipTo } from "@/lib/shop-orders";
+import { notifyCancelled } from "@/lib/shop-notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -183,7 +184,8 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
  *       closed (the rider may be paying). An unpaid order has its Razorpay payment link closed. A paid order is
  *       only marked cancelled — the payment is NOT refunded automatically; refund it in the Razorpay
  *       dashboard. An order that has courier details can't be cancelled until they're removed. The
- *       order stays in the list with a Cancelled status, which the rider also sees.
+ *       buyer and the admins are emailed, and the order stays in the list with a Cancelled status,
+ *       which the rider also sees.
  *     tags:
  *       - Admin
  *     security:
@@ -231,6 +233,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     reason: reason || null,
     timestamp: new Date().toISOString(),
   });
+  await notifyCancelled(result.order, result.wasPaid);
 
   return Response.json({
     status: "cancelled",

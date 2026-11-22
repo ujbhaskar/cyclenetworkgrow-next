@@ -66,7 +66,13 @@ export async function PATCH(request: Request) {
   if (!firstName) {
     return Response.json({ error: "First name is required" }, { status: 400 });
   }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  // Required: it's the login credential, and where payment receipts and order
+  // updates go. (A phone-only account has an internal placeholder instead —
+  // it has to add a real one here.)
+  if (!email) {
+    return Response.json({ error: "Email is required" }, { status: 400 });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return Response.json({ error: "That email address isn't valid" }, { status: 400 });
   }
   if (pincode && !PINCODE_PATTERN.test(pincode)) {
