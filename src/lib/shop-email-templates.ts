@@ -20,7 +20,6 @@ const options = (i: { color: string | null; size: string | null; sleeve: string 
 function baseUrl(order: ShopOrder): string | null {
   return /^https?:\/\/[^\s/]+$/.test(order.origin) ? order.origin : null;
 }
-const riderUrl = (order: ShopOrder) => (baseUrl(order) ? `${baseUrl(order)}/my-orders/${order.id}` : null);
 const adminUrl = (order: ShopOrder) => (baseUrl(order) ? `${baseUrl(order)}/admin/shop/orders` : null);
 
 function itemsHtml(order: ShopOrder): string {
@@ -60,7 +59,8 @@ const itemsTable = (order: ShopOrder, totalLabel?: string): string =>
 
 // ---------- rider ----------
 
-export function orderPaidEmail(order: ShopOrder): EmailContent {
+/** `viewUrl` is where the buyer opens their order (My orders for a rider, the private link for a guest). */
+export function orderPaidEmail(order: ShopOrder, viewUrl: string | null): EmailContent {
   const html = layout(
     "Thank you — your order is confirmed",
     `<p>Hi ${esc(order.shipTo.name)}, we've received your payment.</p>
@@ -69,9 +69,9 @@ ${itemsTable(order, "Total paid")}
 <p><strong>Delivering to:</strong><br>${addressLines(order).map(esc).join("<br>")}</p>
 <p>We'll email you again once your order ships, with the courier and tracking details.</p>`,
     order,
-    { url: riderUrl(order), label: "View your order" },
+    { url: viewUrl, label: "View your order" },
   );
-  const url = riderUrl(order);
+  const url = viewUrl;
   const text = `Thank you — your order is confirmed.
 
 Order ${order.orderNumber}
@@ -86,7 +86,7 @@ We'll email you again once your order ships.${url ? `\n\nView your order: ${url}
   return { subject: `Order ${order.orderNumber} confirmed — thank you!`, html, text };
 }
 
-export function shipmentEmail(order: ShopOrder): EmailContent | null {
+export function shipmentEmail(order: ShopOrder, viewUrl: string | null): EmailContent | null {
   const s = order.shipment;
   if (!s) return null;
   const link = s.trackingUrl && /^https?:\/\//i.test(s.trackingUrl) ? s.trackingUrl : null;
@@ -98,7 +98,7 @@ ${s.note ? `<p>${esc(s.note)}</p>` : ""}
 ${link ? `<p><a href="${esc(link)}" style="background:#0d6efd;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Track shipment</a></p>` : `<p>Use the tracking number above on ${esc(s.courier)}'s website or app.</p>`}
 <p style="color:#666;font-size:13px">Delivering to: ${addressLines(order).map(esc).join(", ")}</p>`,
     order,
-    { url: riderUrl(order), label: "View your order" },
+    { url: viewUrl, label: "View your order" },
   );
   const text = `Your order is on its way.
 
@@ -110,7 +110,7 @@ Delivering to: ${addressLines(order).join(", ")}`;
   return { subject: `Order ${order.orderNumber} has shipped`, html, text };
 }
 
-export function orderCancelledEmail(order: ShopOrder, wasPaid: boolean): EmailContent {
+export function orderCancelledEmail(order: ShopOrder, wasPaid: boolean, viewUrl: string | null): EmailContent {
   const reason = order.cancelReason;
   const html = layout(
     "Your order was cancelled",
@@ -119,9 +119,9 @@ ${reason ? `<p><strong>Reason:</strong> ${esc(reason)}</p>` : ""}
 ${itemsTable(order)}
 ${wasPaid ? `<p>You had already paid for this order. If you haven't heard about a refund soon, please contact us with your transaction ID: <strong>${esc(order.razorpayPaymentId ?? "—")}</strong>.</p>` : "<p>You haven't been charged for this order.</p>"}`,
     order,
-    { url: riderUrl(order), label: "View your order" },
+    { url: viewUrl, label: "View your order" },
   );
-  const url = riderUrl(order);
+  const url = viewUrl;
   const text = `Your order ${order.orderNumber} was cancelled.${reason ? `\nReason: ${reason}` : ""}
 
 ${itemsText(order)}

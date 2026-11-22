@@ -45,3 +45,10 @@ export function tooManyRequests(result: Extract<RateLimitResult, { ok: false }>)
     { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } },
   );
 }
+
+/** Best-effort caller address for rate-limiting anonymous endpoints (behind
+ * App Hosting's proxy the client is the first entry of X-Forwarded-For). */
+export function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  return (forwarded?.split(",")[0] ?? request.headers.get("x-real-ip") ?? "unknown").trim() || "unknown";
+}

@@ -4,6 +4,7 @@ import { getUserProfile } from "@/lib/user-profile";
 import { canAccessPath, getNavLinks } from "@/lib/nav-links";
 import { getCartCount } from "@/lib/shop-cart";
 import ImpersonationBanner from "@/components/admin/ImpersonationBanner";
+import GuestCartMerge from "@/components/shop/GuestCartMerge";
 import Header from "./Header";
 import Footer from "./Footer";
 
@@ -13,6 +14,8 @@ export default async function SiteChrome({ children }: { children: ReactNode }) 
   const visibleLinks = navLinks.filter((link) => isAdmin || !link.adminOnly);
   const profile = session ? await getUserProfile(session.uid) : null;
   // Cart icon only for signed-in visitors who can actually use the shop.
+  // Visitors without an account get a browser-held cart icon instead.
+  const showGuestCart = !session && (await canAccessPath("/shop"));
   const cartCount = session && (await canAccessPath("/shop")) ? await getCartCount(session.uid).catch(() => null) : null;
 
   return (
@@ -28,7 +31,9 @@ export default async function SiteChrome({ children }: { children: ReactNode }) 
           user={session ? { displayName: profile?.displayName ?? null, role: session.role } : null}
           navLinks={visibleLinks}
           cartCount={cartCount}
+          showGuestCart={showGuestCart}
         />
+        {session && <GuestCartMerge />}
         <main className="flex-grow-1 d-flex flex-column">{children}</main>
       </div>
       <Footer />

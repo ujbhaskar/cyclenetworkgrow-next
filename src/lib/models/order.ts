@@ -122,7 +122,10 @@ export type ShopOrder = {
   id: string;
   /** Human-friendly sequential id shown to riders and admins, e.g. CNG-1001. */
   orderNumber: string;
-  uid: string;
+  /** The signed-in rider's uid; null for a guest checkout (no account). */
+  uid: string | null;
+  /** True when the buyer checked out without an account. */
+  guest: boolean;
   items: OrderItem[];
   /** Whole rupees — the total of every item, snapshotted at order time (later price edits don't change it). */
   amount: number;
@@ -187,3 +190,16 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   expired: "Expired",
   cancelled: "Cancelled",
 };
+
+/** Delivery details a guest fills in — stricter than an admin's edit: they have
+ * no account to fall back on, so phone and email are both required. */
+export function parseGuestDetails(
+  body: unknown,
+  validStates: readonly string[],
+): { ok: true; shipTo: OrderShipTo } | { ok: false; error: string } {
+  const parsed = parseShipToInput(body, validStates);
+  if (!parsed.ok) return parsed;
+  if (parsed.shipTo.phone.length !== 10) return { ok: false, error: "Enter your 10-digit phone number" };
+  if (!parsed.shipTo.email) return { ok: false, error: "Enter your email address" };
+  return parsed;
+}

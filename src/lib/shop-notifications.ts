@@ -1,5 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
+import { getGuestToken } from "@/lib/shop-guest";
 import { isSyntheticEmail } from "@/lib/auth/phone";
 import type { ShopOrder } from "@/lib/models/order";
 import { sendEmail } from "@/lib/email";
@@ -53,9 +54,18 @@ async function notify(order: ShopOrder, label: string, rider: EmailContent | nul
   await Promise.all(jobs);
 }
 
-export const notifyOrderPaid = (order: ShopOrder) =>
-  notify(order, "new order", orderPaidEmail(order), adminNewOrderEmail(order));
-export const notifyShipment = (order: ShopOrder) =>
-  notify(order, "shipment", shipmentEmail(order), adminShipmentEmail(order));
-export const notifyCancelled = (order: ShopOrder, wasPaid: boolean) =>
-  notify(order, "cancellation", orderCancelledEmail(order, wasPaid), adminCancelledEmail(order, wasPaid));
+// Where the buyer opens their order from the email: My orders for a rider; for a
+// guest (no login) their private link, which carries the order's secret token.
+async function viewUrl(order: ShopOrder): Promise<string | null> {
+  if (!/^https?:\/\/[^\s/]+$/.test(order.origin)) return null;
+  if (!order.guest) return `${order.origin}/my-orders/${order.id}`;
+  const token = await getGuestToken(order.id);
+  return token ? `${order.origin}/order/${order.id}?t=${encodeURIComponent(token)}` : null;
+}
+
+export const notifyOrderPaid = async (order: ShopOrder) =>
+  notify(order, "new order", orderPaidEmail(order, await viewUrl(order)), adminNewOrderEmail(order));
+export const notifyShipment = async (order: ShopOrder) =>
+  notify(order, "shipment", shipmentEmail(order, await viewUrl(order)), adminShipmentEmail(order));
+export const notifyCancelled = async (order: ShopOrder, wasPaid: boolean) =>
+  notify(order, "cancellation", orderCancelledEmail(order, wasPaid, await viewUrl(order)), adminCancelledEmail(order, wasPaid));

@@ -8,9 +8,12 @@ import { getPublishedProduct } from "@/lib/products";
 // Own collection name — see the note in src/lib/shop-orders.ts.
 const COLLECTION = "shopCarts";
 
-function parseLines(raw: unknown): CartLine[] {
+export const MAX_CART_LINES = 30;
+
+/** Defensive parse of cart lines from storage or from a request body. */
+export function parseCartLines(raw: unknown): CartLine[] {
   if (!Array.isArray(raw)) return [];
-  return raw.flatMap((item): CartLine[] => {
+  return raw.slice(0, MAX_CART_LINES).flatMap((item): CartLine[] => {
     const o = (item ?? {}) as Record<string, unknown>;
     if (typeof o.productId !== "string" || !o.productId) return [];
     const opt = (v: unknown) => (typeof v === "string" && v ? v : null);
@@ -20,7 +23,7 @@ function parseLines(raw: unknown): CartLine[] {
 
 export async function getCartLines(uid: string): Promise<CartLine[]> {
   const doc = await adminDb.collection(COLLECTION).doc(uid).get();
-  return parseLines(doc.data()?.items);
+  return parseCartLines(doc.data()?.items);
 }
 
 async function saveCartLines(uid: string, items: CartLine[]): Promise<void> {
@@ -95,7 +98,12 @@ export async function removeOrderedFromCart(
 /** The cart joined with live product data: current prices, and which lines
  * can't be bought right now (product gone, option removed, marked out of stock). */
 export async function resolveCart(uid: string): Promise<ResolvedCart> {
-  const lines = await getCartLines(uid);
+  return resolveLines(await getCartLines(uid));
+}
+
+/** Same as resolveCart but for lines the caller already has — a guest's cart,
+ * which lives in their browser and is untrusted until resolved here. */
+export async function resolveLines(lines: CartLine[]): Promise<ResolvedCart> {
   const products = new Map<string, Product | null>();
   await Promise.all(
     [...new Set(lines.map((l) => l.productId))].map(async (id) => products.set(id, await getPublishedProduct(id))),

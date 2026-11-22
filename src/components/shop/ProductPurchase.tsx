@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { loginUrlWithNext } from "@/lib/auth/redirect";
+import { addToGuestCart } from "@/lib/guest-cart";
 import {
   MAX_QTY_PER_LINE,
   formatPrice,
@@ -57,11 +57,10 @@ function OptionGroup({
 // it's in stock is only known once every option is picked, since the admin
 // marks out-of-stock per combination.
 //
-// Signed out: either button goes to /login with this product page (plus the
-// chosen options and quantity) as the destination, so after login the rider
-// lands back here with their selection still in place.
-// Signed in: Add to cart puts it in their cart; Buy now does the same and
-// opens the cart, where they review everything before paying.
+// Signed in: Add to cart puts it in their account cart; Buy now does the same
+// and opens the cart, where they review everything before paying.
+// Signed out: the same, but into a cart kept in their browser — they can pay as
+// a guest by filling in their details on the cart page.
 export default function ProductPurchase({
   productId,
   basePrice,
@@ -141,13 +140,23 @@ export default function ProductPurchase({
       return;
     }
 
+    // No account: the cart lives in this browser. The server re-prices and
+    // re-checks everything at checkout, so nothing here is trusted.
     if (!isLoggedIn) {
-      const params = new URLSearchParams();
-      (Object.keys(choice) as (keyof Choice)[]).forEach((key) => {
-        if (choice[key]) params.set(key, choice[key]);
+      addToGuestCart({
+        productId,
+        color: choice.color || null,
+        size: choice.size || null,
+        sleeve: choice.sleeve || null,
+        qty,
       });
-      params.set("qty", String(qty));
-      router.push(loginUrlWithNext(`/shop/${productId}?${params.toString()}`));
+      setError(null);
+      if (mode === "buy") {
+        setPending("buy"); // leave it on — we're navigating away
+        router.push("/cart");
+        return;
+      }
+      setAdded(true);
       return;
     }
 
@@ -228,7 +237,10 @@ export default function ProductPurchase({
           <Link href="/cart">My cart</Link> · <Link href="/my-orders">My orders</Link>
         </p>
       ) : (
-        <p className="text-muted small mt-2 mb-0">You&apos;ll be asked to log in first.</p>
+        <p className="text-muted small mt-2 mb-0">
+          No account needed to buy. <Link href="/cart">My cart</Link> ·{" "}
+          <Link href={`/login?next=${encodeURIComponent(`/shop/${productId}`)}`}>Log in</Link>
+        </p>
       )}
     </>
   );

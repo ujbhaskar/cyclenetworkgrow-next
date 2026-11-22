@@ -7,6 +7,7 @@ import Navbar from "react-bootstrap/Navbar";
 import Nav from "react-bootstrap/Nav";
 import Container from "react-bootstrap/Container";
 import LogoutButton from "@/components/auth/LogoutButton";
+import GuestCartLink from "@/components/shop/GuestCartLink";
 import type { Role } from "@/lib/models/user";
 import type { NavLink } from "@/lib/models/nav-links";
 
@@ -59,11 +60,14 @@ export default function Header({
   user,
   navLinks,
   cartCount = null,
+  showGuestCart = false,
 }: {
   user: HeaderUser | null;
   navLinks: NavLink[];
   /** Items in the rider's cart; null hides the cart icon (signed out, or shop closed to them). */
   cartCount?: number | null;
+  /** Show the browser-held cart icon to a visitor who isn't logged in. */
+  showGuestCart?: boolean;
 }) {
   const pathname = usePathname();
   const overlay = isHeroOverlayPage(pathname);
@@ -168,7 +172,8 @@ export default function Header({
               <LogoutButton variant={overlay ? "outline-light" : "outline-secondary"} />
             </div>
           ) : (
-            <div className="d-flex gap-2">
+ <div className="d-flex align-items-center gap-3">
+              {showGuestCart && <GuestCartLink light={overlay} />}
               <Link href="/login" className={`btn ${overlay ? "btn-outline-light" : "btn-outline-success"}`}>
                 Log in
               </Link>

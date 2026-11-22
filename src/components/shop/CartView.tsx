@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatPrice } from "@/lib/models/product";
 import type { ResolvedCart } from "@/lib/models/cart";
-import { orderItemOptions } from "@/lib/models/order";
-import QtyStepper from "./QtyStepper";
+import CartLines from "./CartLines";
 
 type Delivery = { name: string; phone: string; email: string; address: string; city: string; state: string; pincode: string };
 
@@ -85,42 +84,7 @@ export default function CartView({ cart, delivery }: { cart: ResolvedCart; deliv
   return (
     <div className="row g-4">
       <div className="col-lg-7">
-        <div className="d-flex flex-column gap-3" style={{ opacity: refreshing ? 0.6 : 1 }}>
-          {cart.lines.map((line) => (
-            <div key={line.key} className={`bg-white border rounded p-3 ${line.available ? "" : "border-danger"}`}>
-              <div className="d-flex gap-3">
-                {line.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- external Firebase Storage URL
-                  <img src={line.image} alt="" style={{ width: 88, height: 88, objectFit: "cover", borderRadius: 8 }} />
-                ) : (
-                  <div className="bg-light rounded" style={{ width: 88, height: 88 }} />
-                )}
-                <div className="flex-grow-1">
-                  <div className="d-flex justify-content-between gap-2">
-                    <Link href={`/shop/${line.productId}`} className="fw-semibold text-decoration-none text-reset">
-                      {line.title}
-                    </Link>
-                    <span className="fw-bold text-nowrap">{formatPrice(line.lineTotal)}</span>
-                  </div>
-                  <div className="text-muted small">{orderItemOptions(line)}</div>
-                  <div className="text-muted small">{formatPrice(line.unitPrice)} each</div>
-                  {line.issue && <div className="text-danger small fw-semibold mt-1">{line.issue}</div>}
-                  <div className="d-flex align-items-center gap-3 mt-2">
-                    <QtyStepper
-                      value={Math.min(line.qty, line.maxQty)}
-                      max={line.maxQty}
-                      disabled={busyKey === line.key}
-                      onChange={(qty) => setQty(line.key, qty)}
-                    />
-                    <button type="button" className="btn btn-link btn-sm text-danger p-0" disabled={busyKey === line.key} onClick={() => remove(line.key)}>
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <CartLines lines={cart.lines} busyKey={busyKey} dimmed={refreshing} onQty={setQty} onRemove={remove} />
         <p className="mt-3 mb-0">
           <Link href="/shop" className="text-decoration-none">
             <i className="bi bi-arrow-left me-1" aria-hidden />

@@ -176,7 +176,10 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
                 )}
               </td>
               <td className="text-nowrap">{formatOrderDate(order.createdAt)}</td>
-              <td className="text-nowrap">{order.shipTo.name}</td>
+              <td className="text-nowrap">
+                {order.shipTo.name}
+                {order.guest && <span className="badge text-bg-secondary ms-1" title="Checked out without an account">Guest</span>}
+              </td>
               <td className="text-nowrap">{order.shipTo.phone || "—"}</td>
               <td>{order.shipTo.email || "—"}</td>
               <td style={{ minWidth: 220 }}>

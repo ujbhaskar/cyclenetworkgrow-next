@@ -21,7 +21,8 @@ function toOrder(id: string, d: FirebaseFirestore.DocumentData): ShopOrder {
   return {
     id,
     orderNumber: str(d.orderNumber),
-    uid: str(d.uid),
+    uid: str(d.uid) || null,
+    guest: d.guest === true,
     items: toItems(d),
     amount: typeof d.amount === "number" ? d.amount : 0,
     status: ORDER_STATUSES.includes(d.status) ? (d.status as OrderStatus) : "created",
@@ -102,7 +103,10 @@ const newestFirst = (a: ShopOrder, b: ShopOrder) => b.createdAt.localeCompare(a.
 /** Creates the order record (status "created", no payment link yet) and
  * assigns its sequential order number atomically. */
 export async function createPendingOrder(input: {
-  uid: string;
+  /** null for a guest checkout. */
+  uid: string | null;
+  /** Set for a guest: the secret in their order-page link. Never exposed on ShopOrder. */
+  guestToken?: string;
   items: OrderItem[];
   amount: number;
   shipTo: OrderShipTo;
@@ -116,8 +120,11 @@ export async function createPendingOrder(input: {
     const next = typeof snap.data()?.next === "number" ? (snap.data()!.next as number) : ORDER_NUMBER_START;
     const number = `CNG-${next}`;
     tx.set(counterRef, { next: next + 1 });
+    const { guestToken, ...rest } = input;
     tx.set(orderRef, {
-      ...input,
+      ...rest,
+      guest: input.uid === null,
+      ...(guestToken ? { guestToken } : {}),
       orderNumber: number,
       status: "created",
       paymentLinkId: null,
@@ -180,9 +187,11 @@ export async function markOrderPaid(orderId: string, razorpayPaymentId: string):
   });
 
   if (flipped) {
-    await removeOrderedFromCart(flipped.uid, flipped.items).catch((err) =>
-      console.error("[shop-orders] cart clean-up failed:", err),
-    );
+    if (flipped.uid) {
+      await removeOrderedFromCart(flipped.uid, flipped.items).catch((err) =>
+        console.error("[shop-orders] cart clean-up failed:", err),
+      );
+    }
     // Email the buyer and the admins. Never blocks or fails the payment.
     const paid = await getOrder(orderId);
     if (paid) await notifyOrderPaid(paid).catch((err) => console.error("[shop-orders] notification failed:", err));

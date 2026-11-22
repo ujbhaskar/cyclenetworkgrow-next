@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionCookieOptimistic } from "@/lib/auth/session";
 
 const ADMIN_PREFIX = "/admin";
-const RIDER_PREFIXES = ["/profile", "/my-events", "/my-orders", "/cart"];
+const RIDER_PREFIXES = ["/profile", "/my-events", "/my-orders"];
 
 /**
  * Optimistic check only — cheap, no revocation lookup. The real
@@ -48,5 +48,5 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*", "/my-events/:path*", "/my-orders/:path*", "/cart/:path*"],
+  matcher: ["/admin/:path*", "/profile/:path*", "/my-events/:path*", "/my-orders/:path*"],
 };
