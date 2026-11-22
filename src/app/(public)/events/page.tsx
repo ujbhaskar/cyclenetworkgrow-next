@@ -3,8 +3,10 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import { getPastEvents, getUpcomingEvents, isEventLive } from "@/lib/events";
 import EventCardView from "@/components/events/EventCardView";
+import { requireNavAccess } from "@/lib/nav-links";
 
 export default async function EventsListPage() {
+  await requireNavAccess("/events");
   const [upcomingOrLive, past] = await Promise.all([getUpcomingEvents(50), getPastEvents(5)]);
   // getUpcomingEvents returns anything not yet ended, which includes events
   // already in progress — split those out so an event that has started

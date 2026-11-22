@@ -223,3 +223,11 @@ with Next.js 12–16.0"), and the app is on Next 16.3.4, the project moved to Ap
 a real Next.js server on Cloud Run — instead of chasing further workarounds. The old
 Hosting site and Cloud Function were deleted; `firebase.json` no longer has a `hosting`
 block.
+
+## Shop orders
+
+Unpaid shop orders expire 15 minutes after being placed (the Razorpay payment link expires
+with them), and an admin can only cancel or edit an unpaid order once that window has closed.
+An order can be deleted by an admin only 7 days after it was placed — before that, cancel it.
+Cancelling a paid order does not refund it; refund in the Razorpay dashboard. No emails are
+sent; admins see everything on /admin/shop/orders.

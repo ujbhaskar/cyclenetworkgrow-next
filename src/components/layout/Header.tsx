@@ -12,7 +12,7 @@ import type { NavLink } from "@/lib/models/nav-links";
 
 // Never admin-editable — always shown to admins, regardless of what's
 // configured in /admin/content/navigation.
-const ADMIN_NAV_LINK = { href: "/admin/dashboard", label: "Admin" };
+const ADMIN_NAV_LINK = { href: "/admin/dashboard", label: "Admin", adminOnly: false };
 
 // Used only for the "Events" nav-link active-state rule below — event
 // detail pages no longer get their own hero banner/overlay header (see
@@ -55,7 +55,16 @@ function isNavLinkActive(pathname: string, href: string, links: Pick<NavLink, "h
 
 export type HeaderUser = { displayName: string | null; role: Role };
 
-export default function Header({ user, navLinks }: { user: HeaderUser | null; navLinks: NavLink[] }) {
+export default function Header({
+  user,
+  navLinks,
+  cartCount = null,
+}: {
+  user: HeaderUser | null;
+  navLinks: NavLink[];
+  /** Items in the rider's cart; null hides the cart icon (signed out, or shop closed to them). */
+  cartCount?: number | null;
+}) {
   const pathname = usePathname();
   const overlay = isHeroOverlayPage(pathname);
   const links = user?.role === "admin" ? [...navLinks, ADMIN_NAV_LINK] : navLinks;
@@ -124,6 +133,9 @@ export default function Header({ user, navLinks }: { user: HeaderUser | null; na
                   style={isActive ? { textUnderlineOffset: "6px", textDecorationThickness: "2px" } : undefined}
                 >
                   {link.label}
+                  {link.adminOnly && (
+                    <i className="bi bi-lock-fill ms-1 small" title="Only admins can see this link" aria-label="Admin only" />
+                  )}
                 </Nav.Link>
               );
             })}
@@ -132,6 +144,20 @@ export default function Header({ user, navLinks }: { user: HeaderUser | null; na
             <div
               className={`d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-3 gap-lg-3 mt-2 mt-lg-0 ${overlay ? "text-light" : ""}`}
             >
+              {cartCount !== null && (
+                <Link
+                  href="/cart"
+                  className={`position-relative d-inline-block py-1 text-decoration-none ${overlay ? "text-light" : "text-dark"}`}
+                  aria-label={`Cart, ${cartCount} item${cartCount === 1 ? "" : "s"}`}
+                >
+                  <i className="bi bi-cart3 fs-5" aria-hidden />
+                  {cartCount > 0 && (
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
+              )}
               <Link
                 href="/profile"
                 className={`d-inline-block py-1 fw-medium text-decoration-none ${overlay ? "text-light" : "text-dark"}`}

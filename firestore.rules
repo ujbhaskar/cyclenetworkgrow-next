@@ -48,6 +48,14 @@ service cloud.firestore {
       allow write: if false; // Cloud Functions (Admin SDK) only.
     }
 
+    // Shop data — Admin SDK only. Never readable from the browser: products
+    // include unpublished drafts and prices, and the app filters "published"
+    // server-side. (shopOrders / shopCarts / shopCounters have no rule at all,
+    // which Firestore treats as deny.)
+    match /shopProducts/{productId} {
+      allow read, write: if false;
+    }
+
     match /teams/{teamId} {
       allow read: if true;
       allow write: if isAdmin();

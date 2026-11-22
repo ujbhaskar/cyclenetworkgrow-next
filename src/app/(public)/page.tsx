@@ -5,8 +5,10 @@ import Testimonials from "@/components/home/Testimonials";
 import ReadyToRideBanner from "@/components/home/ReadyToRideBanner";
 import Faq from "@/components/home/Faq";
 import AudaxIndia from "@/components/home/AudaxIndia";
+import { requireNavAccess } from "@/lib/nav-links";
 
-export default function HomePage() {
+export default async function HomePage() {
+  await requireNavAccess("/");
   return (
     <>
       <Hero />

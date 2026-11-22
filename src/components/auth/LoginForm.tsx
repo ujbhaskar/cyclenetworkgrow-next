@@ -86,7 +86,9 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
       // Nudge riders who haven't connected Strava yet straight to the
       // profile page to do it, instead of the home page — everyone else
       // goes wherever they were headed as normal.
-      router.push(stravaConnected ? redirectTo : "/profile");
+      // An explicit destination (e.g. Buy now on a product page) wins over
+      // the Strava nudge — they can connect Strava afterwards.
+      router.push(stravaConnected || redirectTo !== "/" ? redirectTo : "/profile");
       router.refresh();
     } catch (err) {
       const code = err instanceof Error && "code" in err ? String((err as { code: unknown }).code) : "";
@@ -156,7 +158,7 @@ export default function LoginForm({ redirectTo = "/" }: { redirectTo?: string })
       </Form>
 
       <p className="text-center small mt-4 mb-0">
-        Don&apos;t have an account? <Link href="/signup">Sign up</Link>
+        Don&apos;t have an account? <Link href={redirectTo === "/" ? "/signup" : `/signup?next=${encodeURIComponent(redirectTo)}`}>Sign up</Link>
       </p>
     </>
   );

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionCookieOptimistic } from "@/lib/auth/session";
 
 const ADMIN_PREFIX = "/admin";
-const RIDER_PREFIXES = ["/profile", "/my-events"];
+const RIDER_PREFIXES = ["/profile", "/my-events", "/my-orders", "/cart"];
 
 /**
  * Optimistic check only — cheap, no revocation lookup. The real
@@ -22,8 +22,17 @@ export default async function proxy(request: NextRequest) {
 
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
+  // Remember where they were headed so login can send them back there.
+  const loginRedirect = () => {
+    const url = new URL("/login", request.url);
+    if (isRiderRoute) {
+      url.searchParams.set("next", pathname + request.nextUrl.search);
+    }
+    return NextResponse.redirect(url);
+  };
+
   if (!sessionCookie) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return loginRedirect();
   }
 
   try {
@@ -32,12 +41,12 @@ export default async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   } catch {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return loginRedirect();
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/profile/:path*", "/my-events/:path*"],
+  matcher: ["/admin/:path*", "/profile/:path*", "/my-events/:path*", "/my-orders/:path*", "/cart/:path*"],
 };

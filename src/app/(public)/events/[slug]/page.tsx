@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireNavAccess } from "@/lib/nav-links";
 import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
 import { getOptionalSession } from "@/lib/auth/dal";
@@ -43,6 +44,7 @@ export default async function EventDetailPage({
   params,
 }: PageProps<"/events/[slug]">) {
   const { slug } = await params;
+  await requireNavAccess(`/events/${slug}`);
   const event = await getEventBySlug(slug);
 
   if (!event) {

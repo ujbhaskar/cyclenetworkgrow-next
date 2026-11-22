@@ -16,6 +16,14 @@ const ADMIN_NAV: AdminNavSection[] = [
     ],
   },
   {
+    section: "Shop",
+    items: [
+      { href: "/admin/shop", label: "Products", icon: "bi-bag" },
+      { href: "/admin/shop/orders", label: "Orders", icon: "bi-receipt" },
+      { href: "/admin/shop/inventory", label: "Inventory", icon: "bi-boxes" },
+    ],
+  },
+  {
     section: "Users & Riders",
     items: [
       { href: "/admin/users", label: "Users", icon: "bi-people" },

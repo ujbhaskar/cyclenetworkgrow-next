@@ -320,7 +320,7 @@ export default function SignupForm({ redirectTo = "/" }: { redirectTo?: string }
       </Form>
 
       <p className="text-center small mt-4 mb-0">
-        Already have an account? <Link href="/login">Log in</Link>
+        Already have an account? <Link href={redirectTo === "/" ? "/login" : `/login?next=${encodeURIComponent(redirectTo)}`}>Log in</Link>
       </p>
     </>
   );

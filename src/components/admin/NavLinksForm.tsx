@@ -4,17 +4,17 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { NavLink } from "@/lib/models/nav-links";
 
-type Row = { label: string; href: string };
+type Row = { label: string; href: string; adminOnly: boolean };
 
 export default function NavLinksForm({ links }: { links: NavLink[] }) {
   const router = useRouter();
-  const [rows, setRows] = useState<Row[]>(links.map(({ label, href }) => ({ label, href })));
+  const [rows, setRows] = useState<Row[]>(links.map(({ label, href, adminOnly }) => ({ label, href, adminOnly })));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  function updateRow(index: number, field: keyof Row, text: string) {
-    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: text } : row)));
+  function updateRow<K extends keyof Row>(index: number, field: K, value: Row[K]) {
+    setRows((prev) => prev.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
   }
 
   function removeRow(index: number) {
@@ -22,7 +22,7 @@ export default function NavLinksForm({ links }: { links: NavLink[] }) {
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { label: "", href: "" }]);
+    setRows((prev) => [...prev, { label: "", href: "", adminOnly: false }]);
   }
 
   function moveRow(index: number, direction: -1 | 1) {
@@ -39,7 +39,7 @@ export default function NavLinksForm({ links }: { links: NavLink[] }) {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const cleaned = rows.map((r) => ({ label: r.label.trim(), href: r.href.trim() })).filter((r) => r.label && r.href);
+    const cleaned = rows.map((r) => ({ label: r.label.trim(), href: r.href.trim(), adminOnly: r.adminOnly })).filter((r) => r.label && r.href);
 
     if (cleaned.length === 0) {
       setError("Add at least one link.");
@@ -89,6 +89,19 @@ export default function NavLinksForm({ links }: { links: NavLink[] }) {
               value={row.href}
               onChange={(e) => updateRow(index, "href", e.target.value)}
             />
+            <label
+              className={`btn btn-sm text-nowrap mb-0 ${row.adminOnly ? "btn-warning" : "btn-outline-secondary"}`}
+              title="When on, only admins can see this link or open its page"
+            >
+              <input
+                type="checkbox"
+                className="d-none"
+                checked={row.adminOnly}
+                onChange={(e) => updateRow(index, "adminOnly", e.target.checked)}
+              />
+              <i className={`bi ${row.adminOnly ? "bi-lock-fill" : "bi-unlock"} me-1`} aria-hidden />
+              Admin only
+            </label>
             <button
               type="button"
               className="btn btn-outline-secondary btn-sm"

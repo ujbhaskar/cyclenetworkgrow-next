@@ -1,6 +1,8 @@
 import PlaceholderPage from "@/components/PlaceholderPage";
+import { requireNavAccess } from "@/lib/nav-links";
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  await requireNavAccess("/contact");
   return (
     <PlaceholderPage
       title="Contact Us"

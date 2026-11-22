@@ -31,6 +31,9 @@ export const dynamic = "force-dynamic";
  *                       type: string
  *                     href:
  *                       type: string
+ *                     adminOnly:
+ *                       type: boolean
+ *                       description: Hide the link, and lock the page behind it, to everyone but admins.
  *     responses:
  *       200:
  *         description: OK
@@ -59,7 +62,7 @@ export async function PATCH(request: Request) {
     if (label.length > 30 || href.length > 200) {
       return Response.json({ error: "Label must be under 30 characters, href under 200" }, { status: 400 });
     }
-    links.push({ label, href });
+    links.push({ label, href, adminOnly: item.adminOnly === true });
   }
 
   await setNavLinks(links, session.uid);

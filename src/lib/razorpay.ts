@@ -182,3 +182,140 @@ export async function fetchRazorpayPaymentPageByShortUrl(shortUrl: string): Prom
   const pages = await fetchAllRazorpayPaymentPages();
   return pages.find((p) => normalizeShortUrl(p.shortUrl) === target) ?? null;
 }
+
+// ---- Payment Links (shop checkout) ----------------------------------------
+// Hosted Razorpay payment page per order: we create a link with the order id
+// as its reference_id, send the rider there, and Razorpay redirects back to
+// callback_url with a signed query string.
+
+export type RazorpayPaymentLink = {
+  id: string;
+  shortUrl: string;
+  status: string; // created | partially_paid | expired | cancelled | paid
+  referenceId: string | null;
+  /** Latest captured/authorized payment on the link, if any. */
+  paymentId: string | null;
+};
+
+type RawPaymentLink = {
+  id: string;
+  short_url?: string;
+  status?: string;
+  reference_id?: string;
+  payments?: Array<{ payment_id?: string; status?: string }> | null;
+};
+
+function toPaymentLink(raw: RawPaymentLink): RazorpayPaymentLink {
+  const payments = raw.payments ?? [];
+  const paid = payments.find((p) => p.status === "captured") ?? payments[0];
+  return {
+    id: raw.id,
+    shortUrl: raw.short_url ?? "",
+    status: raw.status ?? "",
+    referenceId: raw.reference_id ?? null,
+    paymentId: paid?.payment_id ?? null,
+  };
+}
+
+export async function createRazorpayPaymentLink(input: {
+  amountPaise: number;
+  referenceId: string;
+  description: string;
+  callbackUrl: string;
+  /** Unix seconds; Razorpay stops accepting payment on the link after this (its minimum is 15 min out). */
+  expireBy: number;
+  customer: { name?: string; contact?: string; email?: string };
+  notes: Record<string, string>;
+}): Promise<RazorpayPaymentLink> {
+  const res = await fetch(`${RAZORPAY_API_BASE}/payment_links`, {
+    method: "POST",
+    headers: { Authorization: razorpayAuthHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      amount: input.amountPaise,
+      currency: "INR",
+      accept_partial: false,
+      reference_id: input.referenceId,
+      description: input.description.slice(0, 2000),
+      customer: input.customer,
+      notify: { sms: false, email: false },
+      reminder_enable: false,
+      notes: input.notes,
+      callback_url: input.callbackUrl,
+      callback_method: "get",
+      expire_by: input.expireBy,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Razorpay payment link creation failed: ${res.status} ${await res.text()}`);
+  }
+  return toPaymentLink((await res.json()) as RawPaymentLink);
+}
+
+export async function fetchRazorpayPaymentLink(id: string): Promise<RazorpayPaymentLink> {
+  const res = await fetch(`${RAZORPAY_API_BASE}/payment_links/${encodeURIComponent(id)}`, {
+    headers: { Authorization: razorpayAuthHeader() },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Razorpay payment link fetch failed: ${res.status} ${await res.text()}`);
+  }
+  return toPaymentLink((await res.json()) as RawPaymentLink);
+}
+
+/** Payment method ("upi", "card", ...) and capture time, for the receipt
+ * shown on the rider's order page. Best-effort: null if Razorpay can't be read. */
+export async function fetchRazorpayPaymentDetails(
+  paymentId: string,
+): Promise<{ method: string | null; paidAt: string | null } | null> {
+  try {
+    const res = await fetch(`${RAZORPAY_API_BASE}/payments/${encodeURIComponent(paymentId)}`, {
+      headers: { Authorization: razorpayAuthHeader() },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const p: { method?: string; created_at?: number } = await res.json();
+    return {
+      method: p.method ?? null,
+      paidAt: typeof p.created_at === "number" ? new Date(p.created_at * 1000).toISOString() : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies the signed query string Razorpay appends when it redirects the
+ * rider back to callback_url: HMAC-SHA256, keyed with the API key *secret*,
+ * of `payment_link_id|payment_link_reference_id|payment_link_status|payment_id`.
+ */
+export function verifyPaymentLinkCallback(params: {
+  paymentLinkId: string;
+  referenceId: string;
+  status: string;
+  paymentId: string;
+  signature: string;
+}): boolean {
+  const expected = crypto
+    .createHmac("sha256", requireEnv("RAZORPAY_KEY_SECRET"))
+    .update(`${params.paymentLinkId}|${params.referenceId}|${params.status}|${params.paymentId}`)
+    .digest("hex");
+
+  const expectedBuffer = Buffer.from(expected, "hex");
+  const actualBuffer = Buffer.from(params.signature, "hex");
+  return expectedBuffer.length === actualBuffer.length && crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+/** Stops a payment link from being paid. Returns false if Razorpay refused —
+ * typically because it was already paid or is already closed. */
+export async function cancelRazorpayPaymentLink(id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${RAZORPAY_API_BASE}/payment_links/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      headers: { Authorization: razorpayAuthHeader() },
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("[razorpay] couldn't cancel payment link:", err);
+    return false;
+  }
+}
