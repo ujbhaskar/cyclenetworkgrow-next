@@ -50,8 +50,8 @@ function OptionGroup({
   );
 }
 
-// Price + color/size/sleeve + quantity + Add to cart / Buy now. Nothing is
-// pre-selected — a default size is an easy way to ship someone the wrong one.
+// Price + color/size/sleeve + quantity + Add to cart / Buy now. Options with
+// several values start unselected; a single-value option is pre-selected.
 //
 // The price follows the chosen sleeve (the admin can price each one). Whether
 // it's in stock is only known once every option is picked, since the admin
@@ -84,10 +84,14 @@ export default function ProductPurchase({
   initialQty: number;
 }) {
   const router = useRouter();
+  // An option with only one value is pre-selected — there's nothing to get
+  // wrong. With several, nothing is pre-selected (a default size is an easy
+  // way to ship someone the wrong one).
+  const only = (list: string[]) => (list.length === 1 ? list[0] : "");
   const [choice, setChoice] = useState<Choice>({
-    color: initial.color ?? "",
-    size: initial.size ?? "",
-    sleeve: initial.sleeve ?? "",
+    color: initial.color ?? only(colors),
+    size: initial.size ?? only(sizes),
+    sleeve: initial.sleeve ?? only(sleeves.map((s) => s.name)),
   });
   const [qty, setQty] = useState(initialQty);
   const [pending, setPending] = useState<"cart" | "buy" | null>(null);
