@@ -1,6 +1,7 @@
 import Hero from "@/components/home/Hero";
 import AnnouncementBanner from "@/components/home/AnnouncementBanner";
 import UpcomingEvents from "@/components/home/UpcomingEvents";
+import ShopSection from "@/components/home/ShopSection";
 import Testimonials from "@/components/home/Testimonials";
 import ReadyToRideBanner from "@/components/home/ReadyToRideBanner";
 import Faq from "@/components/home/Faq";
@@ -18,6 +19,7 @@ export default async function HomePage() {
           underneath that overlay instead of pushing it down. */}
       <AnnouncementBanner />
       <UpcomingEvents />
+      <ShopSection />
       <Testimonials />
       <ReadyToRideBanner />
       <Faq />

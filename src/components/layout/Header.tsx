@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
 import Navbar from "react-bootstrap/Navbar";
 import Nav from "react-bootstrap/Nav";
@@ -70,12 +71,19 @@ export default function Header({
   showGuestCart?: boolean;
 }) {
   const pathname = usePathname();
+  // The mobile menu is "open" only on the page it was opened on: remember the
+  // path it was opened at, so going to any other page collapses it by itself
+  // (links, back/forward, anything) with no effect needed.
+  const [openedAt, setOpenedAt] = useState<string | null>(null);
+  const expanded = openedAt === pathname;
   const overlay = isHeroOverlayPage(pathname);
   const links = user?.role === "admin" ? [...navLinks, ADMIN_NAV_LINK] : navLinks;
 
   return (
     <Navbar
       expand="lg"
+      expanded={expanded}
+      onToggle={(open) => setOpenedAt(open ? pathname : null)}
       variant={overlay ? "dark" : "light"}
       className={overlay ? "" : "border-bottom"}
       style={
@@ -123,7 +131,14 @@ export default function Header({
           <span className="nav-toggle-bar" />
           <span className="nav-toggle-bar" />
         </Navbar.Toggle>
-        <Navbar.Collapse id="main-nav">
+        {/* Tapping any link inside also collapses it — needed when the link
+            points at the page you're already on, where the path doesn't change. */}
+        <Navbar.Collapse
+          id="main-nav"
+          onClick={(e: React.MouseEvent<HTMLElement>) => {
+            if ((e.target as HTMLElement).closest("a")) setOpenedAt(null);
+          }}
+        >
           <Nav className="mx-auto">
             {links.map((link) => {
               const isActive = isNavLinkActive(pathname, link.href, links);
