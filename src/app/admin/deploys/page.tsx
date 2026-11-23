@@ -4,7 +4,8 @@ import { requireRole } from "@/lib/auth/dal";
 // watches ujbhaskar/cyclenetworkgrow-next on GitHub directly and runs the
 // build/rollout itself on every push to main (see docs/DEPLOY.md). These are
 // just deep links into where that already-running job can be watched.
-const FIREBASE_APP_HOSTING_URL = "https://console.firebase.google.com/project/challenge1177/apphosting";
+const FIREBASE_ROLLOUTS_URL =
+  "https://console.firebase.google.com/project/challenge1177/apphosting/backends/cyclenetworkgrow-next/locations/us-east4/rollouts";
 const CLOUD_BUILD_HISTORY_URL = "https://console.cloud.google.com/cloud-build/builds;region=us-east4?project=challenge1177";
 const GITHUB_REPO_URL = "https://github.com/ujbhaskar/cyclenetworkgrow-next";
 const LIVE_URL = "https://cyclenetworkgrow-next--challenge1177.us-east4.hosted.app";
@@ -22,10 +23,10 @@ export default async function AdminDeploysPage() {
       </p>
       <ul className="mb-0">
         <li className="mb-2">
-          <a href={FIREBASE_APP_HOSTING_URL} target="_blank" rel="noopener noreferrer">
-            Firebase App Hosting (backend: cyclenetworkgrow-next, region us-east4)
+          <a href={FIREBASE_ROLLOUTS_URL} target="_blank" rel="noopener noreferrer">
+            Firebase App Hosting — Rollouts (backend: cyclenetworkgrow-next, region us-east4)
           </a>{" "}
-          — rollout history and current status; start here.
+          — every push as a rollout, with its commit and status (building, completed, failed); start here.
         </li>
         <li className="mb-2">
           <a href={CLOUD_BUILD_HISTORY_URL} target="_blank" rel="noopener noreferrer">
