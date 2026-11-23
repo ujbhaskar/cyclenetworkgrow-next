@@ -105,9 +105,15 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
     <div>
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h1 className="h3 mb-0">Shop orders</h1>
-        <span className="text-muted small">
-          {orders.filter((o) => o.status === "paid").length} paid · {formatPrice(paidTotal)} collected
-        </span>
+        <div className="d-flex align-items-center gap-3">
+          <span className="text-muted small">
+            {orders.filter((o) => o.status === "paid").length} paid · {formatPrice(paidTotal)} collected
+          </span>
+          <a href="/api/admin/orders/export" className="btn btn-sm btn-outline-success" download>
+            <i className="bi bi-file-earmark-excel me-1" aria-hidden />
+            Download Excel
+          </a>
+        </div>
       </div>
 
       {error && <p className="text-danger small">{error}</p>}
