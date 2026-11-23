@@ -16,7 +16,7 @@ export default function ProductCard({ product, imageHeight = 320 }: { product: P
             {formatPrice(min)}
           </p>
           {/* The whole card is the link; this is just a visible cue (no nested <a>). */}
-          <span className="btn btn-outline-success btn-sm mt-3">Know more &rarr;</span>
+          <span className="btn btn-success w-100 mt-3">Know more &rarr;</span>
         </div>
       </div>
     </Link>
