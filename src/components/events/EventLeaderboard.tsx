@@ -19,6 +19,8 @@ import RidesPerDayChart from "@/components/RidesPerDayChart";
 import IndiaStateMap from "./IndiaStateMap";
 import SimpleBarChart from "./SimpleBarChart";
 import EventDailyProgressTable from "./EventDailyProgressTable";
+import FinishOutlookPanel from "./FinishOutlookPanel";
+import type { FinishOutlook, OutlookStatus } from "@/lib/models/finish-outlook";
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -115,6 +117,37 @@ function PlaceStatList({ title, icon, places }: { title: string; icon: string; p
 // city/state/gender breakdowns, and a state map. No Points column — the
 // legacy scoring formula for it isn't present anywhere in the source data,
 // see docs/REQUIREMENTS.md's open question on event scoring.
+const OUTLOOK_BADGE: Record<OutlookStatus, { className: string; label: string }> = {
+  completed: { className: "text-bg-success", label: "Ridden enough days" },
+  possible: { className: "text-bg-primary", label: "Can still finish" },
+  out: { className: "text-bg-secondary", label: "Out of reach" },
+};
+
+// The two admin-only cells of a rider's row: excuse days left, then the status.
+function OutlookCells({ outlook }: { outlook: FinishOutlook["riders"][number] | undefined }) {
+  if (!outlook) {
+    return (
+      <>
+        <td className="text-center text-muted">—</td>
+        <td className="text-muted">—</td>
+      </>
+    );
+  }
+  return (
+    <>
+      <td className={`text-center ${outlook.status !== "completed" && outlook.excuseDaysLeft <= 0 ? "text-danger fw-semibold" : ""}`}>
+        {outlook.status === "completed" ? "—" : outlook.excuseDaysLeft}
+      </td>
+      <td className="text-nowrap">
+        <span className={`badge ${OUTLOOK_BADGE[outlook.status].className}`}>{OUTLOOK_BADGE[outlook.status].label}</span>
+        {outlook.status === "possible" && outlook.excuseDaysLeft === 0 && (
+          <div className="text-danger" style={{ fontSize: 11 }}>No slack left</div>
+        )}
+      </td>
+    </>
+  );
+}
+
 export default function EventLeaderboard({
   data,
   eventStartDate,
@@ -122,6 +155,8 @@ export default function EventLeaderboard({
   registeredRiders = [],
   currentUserPhone = null,
   dailyProgress = null,
+  finishOutlook = null,
+  eventEnded = false,
 }: {
   data: EventLeaderboardData;
   eventStartDate: string;
@@ -137,6 +172,10 @@ export default function EventLeaderboard({
    * editions) this hasn't been wired up for, in which case the "Daily
    * Progress" tab isn't shown at all rather than rendering empty. */
   dailyProgress?: EventDailyProgressData | null;
+  /** Admin-only "who can still finish" projection (1177) — null for everyone
+   * else, in which case none of the related UI renders. */
+  finishOutlook?: FinishOutlook | null;
+  eventEnded?: boolean;
 }) {
   const {
     riders,
@@ -162,6 +201,12 @@ export default function EventLeaderboard({
   const [nameFilter, setNameFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
+  // Admin-only: narrow to riders who can / can't still finish.
+  const [outlookFilter, setOutlookFilter] = useState<"" | "possible" | "completed" | "out">("");
+  const outlookByPhone = useMemo(
+    () => new Map((finishOutlook?.riders ?? []).map((r) => [r.phone, r])),
+    [finishOutlook],
+  );
 
   // Normalized so "Kolkata"/"kolkata" collapse into one dropdown option —
   // same shared utility the admin tables use.
@@ -180,9 +225,13 @@ export default function EventLeaderboard({
       if (name && !r.name.toLowerCase().includes(name)) return false;
       if (cityFilter && (r.city ? normalizeCity(r.city) : "") !== cityFilter) return false;
       if (stateFilter && (r.state ? normalizeCasing(r.state) : "") !== stateFilter) return false;
+      if (outlookFilter) {
+        const status = outlookByPhone.get(r.phone)?.status;
+        if (outlookFilter === "possible" ? status === "out" || !status : status !== outlookFilter) return false;
+      }
       return true;
     });
-  }, [riders, nameFilter, cityFilter, stateFilter]);
+  }, [riders, nameFilter, cityFilter, stateFilter, outlookFilter, outlookByPhone]);
 
   // -1 when signed out, no phone on file, or not a rider in this event.
   const myRowIndex = currentUserPhone ? riders.findIndex((r) => r.phone === currentUserPhone) : -1;
@@ -323,6 +372,7 @@ export default function EventLeaderboard({
               </div>
             ) : (
               <>
+                {finishOutlook && <FinishOutlookPanel outlook={finishOutlook} ended={eventEnded} />}
                 <div className="d-flex flex-wrap align-items-end gap-2 mb-3">
                   <Form.Group>
                     <Form.Label className="small mb-1">Name</Form.Label>
@@ -366,7 +416,23 @@ export default function EventLeaderboard({
                       ))}
                     </Form.Select>
                   </Form.Group>
-                  {(nameFilter || cityFilter || stateFilter) && (
+                  {finishOutlook && (
+                    <Form.Group>
+                      <Form.Label className="small mb-1">Finish outlook</Form.Label>
+                      <Form.Select
+                        size="sm"
+                        value={outlookFilter}
+                        onChange={(e) => setOutlookFilter(e.target.value as typeof outlookFilter)}
+                        style={{ width: 210 }}
+                      >
+                        <option value="">All riders</option>
+                        <option value="possible">Possible finishers ({finishOutlook.counts.possible})</option>
+                        <option value="completed">Already ridden {finishOutlook.mandatoryDays}+ days ({finishOutlook.counts.completed})</option>
+                        <option value="out">Out of reach ({finishOutlook.counts.out})</option>
+                      </Form.Select>
+                    </Form.Group>
+                  )}
+                  {(nameFilter || cityFilter || stateFilter || outlookFilter) && (
                     <button
                       type="button"
                       className="btn btn-outline-secondary btn-sm"
@@ -374,6 +440,7 @@ export default function EventLeaderboard({
                         setNameFilter("");
                         setCityFilter("");
                         setStateFilter("");
+                        setOutlookFilter("");
                       }}
                     >
                       Clear filters
@@ -416,6 +483,8 @@ export default function EventLeaderboard({
                         </th>
                       ))}
                       <th className="text-center text-nowrap">Total Rides</th>
+                      {finishOutlook && <th className="text-center text-nowrap" title="Days this rider may still skip and finish">Extra days left</th>}
+                      {finishOutlook && <th className="text-nowrap">Finish outlook</th>}
                       <th className="text-end text-nowrap">Distance (Km)</th>
                     </tr>
                   </thead>
@@ -472,6 +541,9 @@ export default function EventLeaderboard({
                           </td>
                         ))}
                         <td className="text-center">{rider.totalRides}</td>
+                        {finishOutlook && (
+                          <OutlookCells outlook={outlookByPhone.get(rider.phone)} />
+                        )}
                         <td className="text-end">
                           {rider.totalDistanceKm.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                         </td>

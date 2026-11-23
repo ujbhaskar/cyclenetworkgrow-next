@@ -4,6 +4,7 @@ import Container from "react-bootstrap/Container";
 import { Badge } from "react-bootstrap";
 import { getOptionalSession } from "@/lib/auth/dal";
 import { getUserProfile } from "@/lib/user-profile";
+import { buildEventFinishOutlook } from "@/lib/finish-outlook";
 import {
   getEventBySlug,
   getPublicEventRiders,
@@ -83,6 +84,12 @@ export default async function EventDetailPage({
   // an admin turning the chatbot off should actually hide the button, not
   // leave it visible only to error when clicked.
   const chatConfig = session ? await getEventChatConfig() : null;
+  // "Who can still finish?" — admin-only, 1177 only (it's built on that event's
+  // mandatory-riding-days rule), from the leaderboard already loaded above.
+  const finishOutlook =
+    session?.role === "admin" && event.id === MILESTONE_QUOTA_EVENT_ID && leaderboard
+      ? buildEventFinishOutlook(event, leaderboard.riders)
+      : null;
 
   return (
     <div>
@@ -211,6 +218,8 @@ export default async function EventDetailPage({
                   registeredRiders={registeredRiders}
                   currentUserPhone={currentUserPhone}
                   dailyProgress={dailyProgress}
+                  finishOutlook={finishOutlook}
+                  eventEnded={!isUpcoming}
                 />
                 {session && chatConfig?.enabled && (
                   <EventChatWidget eventId={event.id} eventName={event.name} riderFirstName={riderFirstName} />
