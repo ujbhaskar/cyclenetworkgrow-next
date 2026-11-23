@@ -1,5 +1,4 @@
 import "server-only";
-import { adminDb } from "@/lib/firebase/admin";
 import { getGuestToken } from "@/lib/shop-guest";
 import { isSyntheticEmail } from "@/lib/auth/phone";
 import type { ShopOrder } from "@/lib/models/order";
@@ -22,21 +21,14 @@ const realEmail = (email: string | null | undefined): string | null => {
 };
 
 /** Who gets the admin alerts: ADMIN_NOTIFY_EMAILS (comma-separated) if set,
- * otherwise every admin account's own email. */
+ * otherwise just the shop mailbox. Individual admin accounts are not mailed. */
+const DEFAULT_ADMIN_EMAIL = "cyclenetworkgrow@gmail.com";
 async function adminRecipients(): Promise<string[]> {
   const configured = (process.env.ADMIN_NOTIFY_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim())
     .filter(Boolean);
-  if (configured.length) return configured;
-
-  try {
-    const snapshot = await adminDb.collection("users").where("role", "==", "admin").get();
-    return snapshot.docs.map((doc) => realEmail(doc.data().email)).filter((e): e is string => Boolean(e));
-  } catch (err) {
-    console.error("[shop email] couldn't look up admin emails:", err);
-    return [];
-  }
+  return configured.length ? configured : [DEFAULT_ADMIN_EMAIL];
 }
 
 // One event -> the buyer's email and the admins' email, sent together. An

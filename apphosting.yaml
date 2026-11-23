@@ -50,6 +50,11 @@ env:
     value: "Cycle Network Grow <cyclenetworkgrow@gmail.com>"
     availability:
       - RUNTIME
+  # Who gets the shop's admin alerts (new order, shipment, cancellation).
+  - variable: ADMIN_NOTIFY_EMAILS
+    value: cyclenetworkgrow@gmail.com
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more

@@ -235,7 +235,7 @@ Cancelling a paid order does not refund it; refund in the Razorpay dashboard.
 
 On a paid order, when courier details are added or changed, and when an order is cancelled,
 the **buyer** and the **admins** are emailed (`src/lib/shop-notifications.ts`). Admin alerts go
-to `ADMIN_NOTIFY_EMAILS` (comma-separated) if set, otherwise to every admin account's email.
+to `ADMIN_NOTIFY_EMAILS` (comma-separated) if set, otherwise only to cyclenetworkgrow@gmail.com.
 Buyers who signed up with only a phone number have no real email and get nothing.
 
 Sending is plain SMTP via nodemailer, so any provider works. The live site uses **Brevo**
