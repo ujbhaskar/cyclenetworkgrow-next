@@ -103,18 +103,16 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
 
   return (
     <div>
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      <div className="d-flex justify-content-between align-items-center mb-2">
         <h1 className="h3 mb-0">Shop orders</h1>
-        <div className="d-flex align-items-center gap-3">
-          <a href="/api/admin/orders/export" className="btn btn-sm btn-outline-success" download>
-            <i className="bi bi-file-earmark-excel me-1" aria-hidden />
-            Download Excel
-          </a>
-          <span className="text-muted small">
-            {orders.filter((o) => o.status === "paid").length} paid · {formatPrice(paidTotal)} collected
-          </span>
-        </div>
+        <span className="text-muted small">
+          {orders.filter((o) => o.status === "paid").length} paid · {formatPrice(paidTotal)} collected
+        </span>
       </div>
+      <a href="/api/admin/orders/export" className="btn btn-sm btn-outline-success mb-3" download>
+        <i className="bi bi-file-earmark-excel me-1" aria-hidden />
+        Download Excel
+      </a>
 
       {error && <p className="text-danger small">{error}</p>}
 
