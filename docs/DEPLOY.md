@@ -238,6 +238,18 @@ the **buyer** and the **admins** are emailed (`src/lib/shop-notifications.ts`). 
 to `ADMIN_NOTIFY_EMAILS` (comma-separated) if set, otherwise only to cyclenetworkgrow@gmail.com.
 Buyers who signed up with only a phone number have no real email and get nothing.
 
+Admins can resend an order's email to the buyer, and see delivery status, from the **Send email**
+button on `/admin/shop/orders`. Delivery status is read from Brevo (last 90 days) and needs
+`BREVO_API_KEY`, an API key from *SMTP & API → API keys* (not the SMTP key). If Brevo blocks
+unknown IP addresses for API keys, switch that off too. To set it on the live site:
+
+```bash
+firebase apphosting:secrets:set BREVO_API_KEY --project challenge1177
+firebase apphosting:secrets:grantaccess BREVO_API_KEY --backend cyclenetworkgrow-next --location us-east4 --project challenge1177
+```
+
+then add `variable: BREVO_API_KEY`, `secret: BREVO_API_KEY` to `apphosting.yaml`.
+
 Sending is plain SMTP via nodemailer, so any provider works. The live site uses **Brevo**
 (free plan, ~300 emails/day): server `smtp-relay.brevo.com`, port 587, the SMTP login and SMTP key
 from Brevo's *SMTP & API → SMTP* page, and the verified sender `cyclenetworkgrow@gmail.com`.

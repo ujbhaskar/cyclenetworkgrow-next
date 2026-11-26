@@ -55,6 +55,12 @@ env:
     value: cyclenetworkgrow@gmail.com
     availability:
       - RUNTIME
+  # Brevo API key (read-only, not the SMTP key) — email delivery status on the
+  # admin orders page.
+  - variable: BREVO_API_KEY
+    secret: BREVO_API_KEY
+    availability:
+      - RUNTIME
 
 runConfig:
   # Review site, low traffic — keep it cheap. Bump if it needs to hold more

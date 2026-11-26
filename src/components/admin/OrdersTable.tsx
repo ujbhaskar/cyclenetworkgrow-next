@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Table from "react-bootstrap/Table";
 import Form from "react-bootstrap/Form";
 import Badge from "react-bootstrap/Badge";
@@ -13,10 +13,32 @@ import OrderAddressModal from "./OrderAddressModal";
 import OrderFlagModal from "./OrderFlagModal";
 import OrderCancelModal from "./OrderCancelModal";
 import OrderStatusBadge from "@/components/shop/OrderStatusBadge";
+import OrderEmailModal from "./OrderEmailModal";
+import { EMAIL_FILTERS, emailEventLook, latestEmailStatus, matchesEmailFilter, type EmailEventsResponse, type EmailFilter } from "@/lib/models/email-activity";
 
 type Filter = "all" | "paid" | "created" | "cancelled" | "expired" | "flagged" | "pinned";
 
-export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrder[] }) {
+export default function OrdersTable({
+  orders: initialOrders,
+  links,
+}: {
+  orders: ShopOrder[];
+  /** Order id -> the buyer's order page; null when one can't be built. */
+  links: Record<string, string | null>;
+}) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  async function copyLink(order: ShopOrder) {
+    const link = links[order.id];
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedId(order.id);
+      setTimeout(() => setCopiedId((id) => (id === order.id ? null : id)), 2000);
+    } catch {
+      // Clipboard blocked (e.g. plain http) — show it so it can be copied by hand.
+      prompt(`Order link for ${order.orderNumber}`, link);
+    }
+  }
   const [orders, setOrders] = useState(initialOrders);
   const [shipping, setShipping] = useState<ShopOrder | null>(null);
   const [editingAddress, setEditingAddress] = useState<ShopOrder | null>(null);
@@ -30,8 +52,42 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
     const timer = setInterval(() => setTick((n) => n + 1), 30_000);
     return () => clearInterval(timer);
   }, []);
+  const [emailing, setEmailing] = useState<ShopOrder | null>(null);
+  // Delivery status comes from Brevo after the page loads, so a slow or
+  // failing Brevo never holds up the order list.
+  const [emailData, setEmailData] = useState<EmailEventsResponse | "failed" | null>(null);
+  const [refreshingEmails, setRefreshingEmails] = useState(false);
+  const fetchEmailData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/orders/email-events", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      setEmailData(await res.json());
+    } catch {
+      setEmailData("failed");
+    }
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- state is only set after the request returns
+    fetchEmailData();
+  }, [fetchEmailData]);
+  async function refreshEmails() {
+    setRefreshingEmails(true);
+    await fetchEmailData();
+    setRefreshingEmails(false);
+  }
+  const emailNote =
+    emailData === null
+      ? "Loading delivery status…"
+      : emailData === "failed"
+        ? "Couldn't read delivery status from Brevo."
+        : !emailData.configured
+          ? "Delivery status isn't set up yet — BREVO_API_KEY is missing."
+          : null;
+  const emailEvents = (order: ShopOrder) =>
+    emailData && emailData !== "failed" && emailData.configured ? (emailData.byOrder[order.orderNumber] ?? []) : [];
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
+  const [emailFilter, setEmailFilter] = useState<EmailFilter>("all");
 
   function handleShipmentSaved(orderId: string, shipment: OrderShipment | null) {
     setOrders((list) => list.map((o) => (o.id === orderId ? { ...o, shipment } : o)));
@@ -74,6 +130,8 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
 
   const term = search.trim().toLowerCase();
   const visible = orders
+    // Ignored until delivery status has loaded — otherwise every order would look like it has none.
+    .filter((order) => emailNote !== null || matchesEmailFilter(latestEmailStatus(emailEvents(order), order.shipTo.email), emailFilter))
     .filter((order) => {
     if (filter === "flagged") return order.flag !== null && matchesSearch(order);
     if (filter === "pinned") return order.pinned && matchesSearch(order);
@@ -133,6 +191,21 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
           <option value="flagged">Flagged</option>
           <option value="pinned">Pinned</option>
         </Form.Select>
+        <Form.Select
+          size="sm"
+          style={{ width: 220 }}
+          value={emailFilter}
+          onChange={(e) => setEmailFilter(e.target.value as EmailFilter)}
+          disabled={emailNote !== null}
+          title={emailNote ?? "Filter by the latest email to the buyer"}
+          aria-label="Filter by email status"
+        >
+          {EMAIL_FILTERS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Form.Select>
         <span className="text-muted small ms-auto align-self-center">
           {visible.length} of {orders.length}
         </span>
@@ -141,6 +214,7 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
       <Table responsive hover className="table table-striped align-middle">
         <thead>
           <tr>
+            <th className="text-nowrap">Sl No</th>
             <th>Order</th>
             <th>Date</th>
             <th>Rider</th>
@@ -152,23 +226,27 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
             <th>Transaction ID</th>
             <th>Delivery address</th>
             <th>Courier</th>
+            <th className="text-nowrap">Email delivery</th>
+            <th className="text-nowrap">Send email</th>
+            <th className="text-nowrap">Order link</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {visible.length === 0 && (
             <tr>
-              <td colSpan={12} className="text-muted text-center py-4">
+              <td colSpan={16} className="text-muted text-center py-4">
                 No orders to show.
               </td>
             </tr>
           )}
-          {visible.map((order) => (
+          {visible.map((order, position) => (
             <tr
               key={order.id}
               className={order.flag ? "table-danger" : order.pinned ? "table-warning" : ""}
               style={order.status === "cancelled" || order.status === "expired" ? { opacity: 0.65 } : undefined}
             >
+              <td>{position + 1}</td>
               <td className="text-nowrap fw-semibold">
                 {order.pinned && <i className="bi bi-pin-angle-fill text-warning-emphasis me-1" title="Pinned" aria-label="Pinned" />}
                 {order.orderNumber}
@@ -230,6 +308,41 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
                 ) : (
                   <span className="text-muted">{order.status === "created" ? "Awaiting payment" : "—"}</span>
                 )}
+              </td>
+              <td className="text-nowrap small">
+                {(() => {
+                  const latest = latestEmailStatus(emailEvents(order), order.shipTo.email);
+                  const look = latest && emailEventLook(latest.event);
+                  return (
+                    <span title={emailNote ?? "Latest email to the buyer"}>
+                      {look ? <Badge bg={look.variant}>{look.label}</Badge> : <span className="text-muted">—</span>}
+                    </span>
+                  );
+                })()}
+              </td>
+              <td className="text-nowrap">
+                <Button size="sm" variant="primary" onClick={() => setEmailing(order)}>
+                  <i className="bi bi-envelope me-1" aria-hidden />
+                  Send email
+                </Button>
+              </td>
+              <td className="text-nowrap">
+                <Button
+                  size="sm"
+                  variant={copiedId === order.id ? "success" : "outline-success"}
+                  onClick={() => copyLink(order)}
+                  disabled={!links[order.id]}
+                  title={
+                    !links[order.id]
+                      ? "No link available for this order"
+                      : order.guest
+                        ? "Anyone with this link can open the order, so send it only to the buyer"
+                        : "The rider has to sign in to open this link"
+                  }
+                >
+                  <i className={`bi ${copiedId === order.id ? "bi-check-lg" : "bi-link-45deg"} me-1`} aria-hidden />
+                  {copiedId === order.id ? "Copied" : "Copy link"}
+                </Button>
               </td>
               <td className="text-nowrap">
                 <div className="d-flex gap-1">
@@ -294,6 +407,17 @@ export default function OrdersTable({ orders: initialOrders }: { orders: ShopOrd
           ))}
         </tbody>
       </Table>
+
+      <OrderEmailModal
+        key={`email-${emailing?.id ?? "closed"}`}
+        // The live row, so an email address corrected meanwhile is what's shown.
+        order={orders.find((o) => o.id === emailing?.id) ?? null}
+        events={emailing ? emailEvents(emailing) : []}
+        statusNote={emailNote}
+        refreshing={refreshingEmails}
+        onRefresh={refreshEmails}
+        onClose={() => setEmailing(null)}
+      />
 
       <OrderAddressModal
         key={`addr-${editingAddress?.id ?? "closed"}`}
